@@ -1,8 +1,11 @@
 #include <windows.h>
 #include <SDL3/SDL.h>
+#include <cmath>
 
 // The number of triangles in each circle
 #define resolution 8
+// The multiplier for the simulation's speed. Will be redone later
+#define FACTOR 60
 
 // Precomputed sine and cosine values for generating circles
 static double sines[resolution];
@@ -58,18 +61,28 @@ void createCircles(size_t num, double *centers, SDL_Vertex *verts, int *idxs, do
     }
 }
 
+static const int w = 800;
+static const int h = 600;
+
 // A "hello, world" program of sorts
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
     SDL_Init(SDL_INIT_VIDEO);
-    SDL_Window* window = SDL_CreateWindow("Hello, world!", 800, 600, 0);
+    SDL_Window* window = SDL_CreateWindow("Hello, world!", w, h, 0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, NULL);
     SDL_SetRenderVSync(renderer, 1);
+
+    // Hardcoded values for Pluto and Charon
+    const size_t num = 2;
+    double positions[4] = {2112909.83, 0, -17527090.2, 0};
+    double velocities[4] = {0, 23.9824556, 0,-198.940179};
+    double accelerations[4] = {0};
+    double mus[2] = {8.71e11, 1.05e11};
+    double scale = min(w, h) / 2.0 / 17527090.2;
 
     bool running = true;
     while (running) {
         // Gets the current events
         SDL_Event e;
-        // Runs while there's an event
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_EVENT_QUIT) {
                 // Terminate the loop
@@ -82,18 +95,69 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         SDL_RenderClear(renderer);
         
         // Set up the circle
-        double centers[2*2] = {100, 30, 650, 200};
+        double centers[4] = {0};
+        for (size_t i = 0; i < num; i++) {
+            centers[i * 2 + 0] =  positions[i * 2 + 0] * scale + w / 2;
+            centers[i * 2 + 1] = -positions[i * 2 + 1] * scale + h / 2;
+        }
         SDL_Vertex verts[(resolution + 1) * 2] = {0};
         int idxs[2 * resolution * 3] = {0};
         createCircles(2, centers, verts, idxs, 10);
-
-        // Actually draw the circles
+        
+        // Draw the circles
         SDL_RenderGeometry(renderer, NULL, verts, (resolution + 1) * 2, idxs, 2 * resolution * 3);
 
         SDL_RenderPresent(renderer);
-    }
 
-    // Some memory management
+        // We're out of our draw loop and into our computation loop
+        
+        // Perform verlet integration
+        
+        // Update acceleration
+        for (size_t i = 0; i < num * 2; i++) {
+            accelerations[i] = 0.0;
+        }
+        for (size_t i = 0; i < num; i++) {
+            for (size_t j = 0; j < num; j++) {
+                if (i != j) {
+                    double dx = positions[j * 2 + 0] - positions[i * 2 + 0];
+                    double dy = positions[j * 2 + 1] - positions[i * 2 + 1];
+                    double dist2 = dx * dx + dy * dy;
+                    double dist = sqrt(dist2);
+                    double invDist3 = 1.0 / (dist2 * dist);
+                    accelerations[i * 2 + 0] += dx * mus[j] * invDist3;
+                    accelerations[i * 2 + 1] += dy * mus[j] * invDist3;
+                }
+            }
+        }
+        // Perform a half-step
+        for (size_t i = 0; i < num * 2; i++) {
+            velocities[i] += accelerations[i] * FACTOR / 2.0;
+            positions[i] += velocities[i] * FACTOR;
+        }
+        // Update acceleration again
+        for (size_t i = 0; i < num * 2; i++) {
+            accelerations[i] = 0.0;
+        }
+        for (size_t i = 0; i < num; i++) {
+            for (size_t j = 0; j < num; j++) {
+                if (i != j) {
+                    double dx = positions[j * 2 + 0] - positions[i * 2 + 0];
+                    double dy = positions[j * 2 + 1] - positions[i * 2 + 1];
+                    double dist2 = dx * dx + dy * dy;
+                    double dist = sqrt(dist2);
+                    double invDist3 = 1.0 / (dist2 * dist);
+                    accelerations[i * 2 + 0] += dx * mus[j] * invDist3;
+                    accelerations[i * 2 + 1] += dy * mus[j] * invDist3;
+                }
+            }
+        }
+        // Another half-step
+        for (size_t i = 0; i < num * 2; i++) {
+            velocities[i] += accelerations[i] * FACTOR / 2.0;
+        }
+    }
+    
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();

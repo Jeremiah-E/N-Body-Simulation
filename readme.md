@@ -10,7 +10,15 @@ I have no means to test this on other operating systems than my own, so I intent
 
 # Progress so far
 
-Right now, I've got a window opening and I can draw hardcoded circles. That circle drawing function will last through the entire project, if the last version of the project ends up being similar.
+I have a general structure for how bodies will be stored, as four different `double` arrays:
+1. Position
+2. Velocity
+3. Acceleration
+4. Gravitational parameter
+
+I also have Pluto and Charon hardcoded right now.
+
+Right now, I draw their positions and then perform velocity-verlet integration to find their position for the next frame. Right now the simulation is 2D, but I have plans on how to change that later. For now, it's Pluto and Charon in a plane, so there's no need to add 3D vectors yet.
 
 # Planned goals of note
 
