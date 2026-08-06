@@ -4,8 +4,24 @@
 // The number of triangles in each circle
 #define resolution 8
 
+// Precomputed sine and cosine values for generating circles
+static double sines[resolution];
+static double cosines[resolution];
+static bool sincosInit = false;
+
 // Given an array of centers, store the points of the circle in the vertex array
 void createCircles(size_t num, double *centers, SDL_Vertex *verts, int *idxs, double size) {
+    // Precompute angles. Ideally, this'd be done in WinMain as I want to try and make this multithreaded later
+    // For now, I'll leave it since I've already done way more premature optimization than I should've
+    if (!sincosInit) {
+        for (size_t i = 0; i < resolution; i++) {
+            double angle = ((double)i / resolution) * SDL_PI_D * 2.0;
+            sines[i] = sin(angle);
+            cosines[i] = cos(angle);
+        }
+        sincosInit = true;
+    }
+
     // We assume verts is [resolution+1] times the length of num
     // With that, we go center by center and mutate verts
     // Since each iteration does not mess with the last, I hint the compiler parallelize it
@@ -16,16 +32,16 @@ void createCircles(size_t num, double *centers, SDL_Vertex *verts, int *idxs, do
         // Our local verts array
         SDL_Vertex *_verts = verts + (resolution + 1) * i;
         for (size_t j = 0; j < resolution; j++) {
-            // What angle we're on
-            double angle = ((double)j / resolution) * SDL_PI_D * 2.0;
             // The jth point along a circle
-            _verts[j].position = {(float)(cx + sin(angle) * size), (float)(cy + cos(angle) * size)};
+            _verts[j].position = {(float)(cx + sines[j] * size), (float)(cy + cosines[j] * size)};
         }
         // The center of the circle, all tris forming the circle point here
         _verts[resolution].position = {(float)cx, (float)cy};
     }
-    #pragma loop(hint_parallel(0))
-    for (size_t i = 0; i < num * (resolution + 1); i++) {
+
+    // Clear the color to red
+    const size_t numVert = num * (resolution + 1);
+    for (size_t i = 0; i < numVert; i++) {
         verts[i].color = {1, 0, 0, 1};
     }
 
