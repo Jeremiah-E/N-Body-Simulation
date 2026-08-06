@@ -1,6 +1,47 @@
 #include <windows.h>
 #include <SDL3/SDL.h>
 
+// The number of triangles in each circle
+#define resolution 8
+
+// Given an array of centers, store the points of the circle in the vertex array
+void createCircles(size_t num, double *centers, SDL_Vertex *verts, int *idxs, double size) {
+    // We assume verts is [resolution+1] times the length of num
+    // With that, we go center by center and mutate verts
+    // Since each iteration does not mess with the last, I hint the compiler parallelize it
+    #pragma loop(hint_parallel(0))
+    for (size_t i = 0; i < num; i++) {
+        double cx = centers[i * 2 + 0];
+        double cy = centers[i * 2 + 1];
+        // Our local verts array
+        SDL_Vertex *_verts = verts + (resolution + 1) * i;
+        for (size_t j = 0; j < resolution; j++) {
+            // What angle we're on
+            double angle = ((double)j / resolution) * SDL_PI_D * 2.0;
+            // The jth point along a circle
+            _verts[j].position = {(float)(cx + sin(angle) * size), (float)(cy + cos(angle) * size)};
+        }
+        // The center of the circle, all tris forming the circle point here
+        _verts[resolution].position = {(float)cx, (float)cy};
+    }
+    #pragma loop(hint_parallel(0))
+    for (size_t i = 0; i < num * (resolution + 1); i++) {
+        verts[i].color = {1, 0, 0, 1};
+    }
+
+    // Build triangle indices for each circle
+    for (size_t i = 0; i < num; i++) {
+        int base = (resolution + 1) * i;
+        int ibase = resolution * 3 * i;
+        for (int j = 0; j < resolution; j++) {
+            int tri = ibase + j * 3;
+            idxs[tri + 0] = base + j;
+            idxs[tri + 1] = base + ((j + 1) % resolution);
+            idxs[tri + 2] = base + resolution;
+        }
+    }
+}
+
 // A "hello, world" program of sorts
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
     SDL_Init(SDL_INIT_VIDEO);
@@ -20,30 +61,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             }
         }
 
-        // Draw a triangle
+        // Reset the screen
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
+        
+        // Set up the circle
+        double centers[2*2] = {100, 30, 650, 200};
+        SDL_Vertex verts[(resolution + 1) * 2] = {0};
+        int idxs[2 * resolution * 3] = {0};
+        createCircles(2, centers, verts, idxs, 10);
 
-        // Define the points
-        SDL_Point p1 = {400, 100};
-        SDL_Point p2 = {200, 500};
-        SDL_Point p3 = {600, 500};
-
-        // Put the points into a vertex array
-        SDL_Vertex verts[3];
-        verts[0].position.x = (float)p1.x; verts[0].position.y = (float)p1.y; 
-        verts[1].position.x = (float)p2.x; verts[1].position.y = (float)p2.y; 
-        verts[2].position.x = (float)p3.x; verts[2].position.y = (float)p3.y; 
-        verts[0].color = {1.0f, 0.0f, 0.0f, 1.0f};
-        verts[1].color = {0.0f, 1.0f, 0.0f, 1.0f}; // Red, green, then blue
-        verts[2].color = {0.0f, 0.0f, 1.0f, 1.0f};
-        verts[0].tex_coord = {0.0f, 0.0f};
-        verts[1].tex_coord = {0.0f, 0.0f};
-        verts[2].tex_coord = {0.0f, 0.0f};
-
-        // Actually draw the triangle
-        int indices[3] = {0, 1, 2};
-        SDL_RenderGeometry(renderer, NULL, verts, 3, indices, 3);
+        // Actually draw the circles
+        SDL_RenderGeometry(renderer, NULL, verts, (resolution + 1) * 2, idxs, 2 * resolution * 3);
 
         SDL_RenderPresent(renderer);
     }
