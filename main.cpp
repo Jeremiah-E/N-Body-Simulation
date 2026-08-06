@@ -1,6 +1,6 @@
 #include <windows.h>
 #include <SDL3/SDL.h>
-#include <cmath>
+#include <memory>
 
 // The number of triangles in each circle
 #define resolution 8
@@ -13,7 +13,7 @@ static double cosines[resolution];
 static bool sincosInit = false;
 
 // Given an array of centers, store the points of the circle in the vertex array
-void createCircles(size_t num, double *centers, SDL_Vertex *verts, int *idxs, double size) {
+void createCircles(size_t num, float *centers, SDL_Vertex *verts, int *idxs, double size) {
     // Precompute angles. Ideally, this'd be done in WinMain as I want to try and make this multithreaded later
     // For now, I'll leave it since I've already done way more premature optimization than I should've
     if (!sincosInit) {
@@ -72,19 +72,34 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     SDL_SetRenderVSync(renderer, 1);
 
     // Hardcoded values for Pluto and Charon
+    // At some point, I need to shift this over to reading from a file
     const size_t num = 2;
-    double positions[4] = {2112909.83, 0, -17527090.2, 0};
-    double velocities[4] = {0, 23.9824556, 0,-198.940179};
-    double accelerations[4] = {0};
-    double mus[2] = {8.71e11, 1.05e11};
-    double scale = min(w, h) / 2.0 / 17527090.2;
+    auto positions = std::make_unique<double[]>(num * 2);
+    positions[0] =  2112909.83; // Pluto
+    positions[2] = -17527090.2; // Charon
+    auto velocities = std::make_unique<double[]>(num * 2);
+    velocities[1] =   23.9824556; // Pluto
+    velocities[3] = -198.940179 ; // Charon
+    auto accelerations = std::make_unique<double[]>(num*2);
+    auto mus = std::make_unique<double[]>(num);
+    mus[0] = 8.71e11; // Pluto
+    mus[1] = 1.05e11; // Charon
+    
+    // Draw loop variables. For now a const, when I get futher along I'll mess with this a bit
+    const double scale = min(w, h) / 2.0 / (17527090.2 * 1.1);
+
+    // Arrays used for various things inside the draw loop
+    // Any array here must be overwritten before being read from
+    auto centers = std::make_unique<float[]>(num*2);
+    auto verts = std::make_unique<SDL_Vertex[]>((resolution + 1) * num);
+    auto idxs = std::make_unique<int[]>(num*resolution*3);
 
     bool running = true;
     while (running) {
         // Gets the current events
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_EVENT_QUIT) {
+            if (e.type == SDL_EVENT_QUIT) { // The user/computer asked the program to quit
                 // Terminate the loop
                 running = false;
             }
@@ -95,24 +110,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         SDL_RenderClear(renderer);
         
         // Set up the circle
-        double centers[4] = {0};
+        // When I allow for rotation, I will make this its own function
         for (size_t i = 0; i < num; i++) {
-            centers[i * 2 + 0] =  positions[i * 2 + 0] * scale + w / 2;
-            centers[i * 2 + 1] = -positions[i * 2 + 1] * scale + h / 2;
+            centers[i*2] = positions[i * 2 + 0] * scale + w / 2;
+            centers[i*2+1] = -positions[i * 2 + 1] * scale + h / 2;
         }
-        SDL_Vertex verts[(resolution + 1) * 2] = {0};
-        int idxs[2 * resolution * 3] = {0};
-        createCircles(2, centers, verts, idxs, 10);
+        createCircles(num, centers.get(), verts.get(), idxs.get(), 10);
         
         // Draw the circles
-        SDL_RenderGeometry(renderer, NULL, verts, (resolution + 1) * 2, idxs, 2 * resolution * 3);
+        SDL_RenderGeometry(renderer, NULL, verts.get(), (resolution + 1) * num, idxs.get(), num * resolution * 3);
 
         SDL_RenderPresent(renderer);
 
         // We're out of our draw loop and into our computation loop
         
         // Perform verlet integration
-        
         // Update acceleration
         for (size_t i = 0; i < num * 2; i++) {
             accelerations[i] = 0.0;
