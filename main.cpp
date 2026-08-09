@@ -84,6 +84,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     auto mus = std::make_unique<double[]>(num);
     mus[0] = 8.71e11; // Pluto
     mus[1] = 1.05e11; // Charon
+    char *names[2] = {"Pluto", "Charon"};
     
     // Draw loop variables. For now a const, when I get futher along I'll mess with this a bit
     const double scale = min(w, h) / 2.0 / (17527090.2 * 1.1);
@@ -119,6 +120,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         
         // Draw the circles
         SDL_RenderGeometry(renderer, NULL, verts.get(), (resolution + 1) * num, idxs.get(), num * resolution * 3);
+
+        // Draw some text
+        const size_t bufLen = 50;
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        char buf[bufLen];
+        // Row 1: "Simulating 2 bodies"
+        snprintf(buf, bufLen, "Simulating %u bodies", num);
+        SDL_RenderDebugText(renderer, 10, 10, buf);
+        // Row 2: "Pluto, Charon"
+        size_t bufIdx = 0;
+        for (size_t i = 0; i < num - 1; i++) {
+            snprintf(buf + bufIdx, bufLen - bufIdx, "%s, ", names[i]);
+            bufIdx += strlen(names[i]) + 2;
+        }
+        snprintf(buf + bufIdx, bufLen - bufIdx, "%s", names[num-1]);
+        SDL_RenderDebugText(renderer, 10, 20, buf);
 
         SDL_RenderPresent(renderer);
 
