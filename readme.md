@@ -10,20 +10,21 @@ I have no means to test this on other operating systems than my own, so I intent
 
 # Progress so far
 
-I have a general structure for how bodies will be stored, as four different `double` arrays:
+I have a general structure for how bodies will be stored, as four different `double` arrays, alongside a `string` vector:
 1. Position
 2. Velocity
 3. Acceleration
 4. Gravitational parameter
+5. Name
 
-I also have Pluto and Charon hardcoded right now.
+Bodies are no longer hardcoded in `main.cpp`. Instead, a Python script (`universe.py`) generates a `universe.bin` file describing the system (body count, positions, velocities, gravitational parameters, and names), which `main.cpp` reads at startup. `universe.py` currently supports toggling Pluto/Charon and the four minor moons (Nix, Hydra, Styx, Kerberos) on and off, and automatically re-centers the system so the center of mass stays fixed with zero net momentum.
 
-Right now, I draw their positions and then perform velocity-verlet integration to find their position for the next frame. Right now the simulation is 2D, but I have plans on how to change that later. For now, it's Pluto and Charon in a plane, so there's no need to add 3D vectors yet.
+Right now, I draw the loaded bodies' positions and then perform velocity-verlet integration to find their position for the next frame. Right now the simulation is 2D, but I have plans on how to change that later. For now, everything is in a plane, so there's no need to add 3D vectors yet.
 
 # Planned goals of note
 
 I want to have two files (read at runtime) that determine two properties:
-1. What planets are loaded in (e.g. Earth/Moon or Earth/Moon/Sun/Mars, etc.).
+1. What planets are loaded in (e.g. Earth/Moon or Earth/Moon/Sun/Mars, etc.). [In-progress]
 2. A mission profile, with an optional `NO PROFILE` as to let you just view the solar system.
 
 I might write a program to make editing these files easier, but haven't decided yet. If I do, I'll most likely have a Python program where you check boxes for planets, set the epoch, and plan the mission.

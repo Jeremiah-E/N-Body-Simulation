@@ -1,6 +1,12 @@
 #include <windows.h>
 #include <SDL3/SDL.h>
 #include <memory>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <cmath>
+#include <cstdio>
 
 // The number of triangles in each circle
 #define resolution 8
@@ -66,26 +72,63 @@ static const int h = 600;
 
 // A "hello, world" program of sorts
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+    // Initialize data
+    int num;
+    std::unique_ptr<double []> positions;
+    std::unique_ptr<double []> velocities;
+    std::unique_ptr<double []> accelerations;
+    std::unique_ptr<double []> mus;
+    std::vector<std::string> names;
+    // Read from universe.bin
+    std::ifstream universe("universe.bin", std::ios::binary);
+    if (universe.is_open()) {
+        // Get num
+        universe.read(reinterpret_cast<char*>(&num), sizeof(int));
+        // Create the pointer arrays/vector for everything
+        positions = std::make_unique<double[]>(num * 2);
+        velocities = std::make_unique<double[]>(num * 2);
+        accelerations = std::make_unique<double[]>(num * 2);
+        mus = std::make_unique<double[]>(num);
+        names.reserve(num); // Vectors can be any size, so we tell it to reserve this size instead of dynamically allocating itself
+        // Load positions
+        for (int i = 0; i < num * 2; i++) {
+            double value;
+            universe.read(reinterpret_cast<char*>(&value), sizeof(value));
+            positions[i] = value;
+        }
+        // Load velocities
+        for (int i = 0; i < num * 2; i++) {
+            double value;
+            universe.read(reinterpret_cast<char*>(&value), sizeof(value));
+            velocities[i] = value;
+        }
+        // Load mus
+        for (int i = 0; i < num; i++) {
+            double value;
+            universe.read(reinterpret_cast<char*>(&value), sizeof(value));
+            mus[i] = value;
+        }
+        // Load names
+        for (int i = 0; i < num; i++) {
+            std::string name;
+            // Get up to the null-terminator
+            std::getline(universe, name, '\0');
+            // Add it to names
+            names.push_back(std::move(name));
+        }
+        
+        universe.close();
+    } else {
+        // The file could not open
+        return 1;
+    }
+
+    // Create the window
     SDL_Init(SDL_INIT_VIDEO);
     SDL_Window* window = SDL_CreateWindow("Hello, world!", w, h, 0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, NULL);
     SDL_SetRenderVSync(renderer, 1);
 
-    // Hardcoded values for Pluto and Charon
-    // At some point, I need to shift this over to reading from a file
-    const size_t num = 2;
-    auto positions = std::make_unique<double[]>(num * 2);
-    positions[0] =  2112909.83; // Pluto
-    positions[2] = -17527090.2; // Charon
-    auto velocities = std::make_unique<double[]>(num * 2);
-    velocities[1] =   23.9824556; // Pluto
-    velocities[3] = -198.940179 ; // Charon
-    auto accelerations = std::make_unique<double[]>(num*2);
-    auto mus = std::make_unique<double[]>(num);
-    mus[0] = 8.71e11; // Pluto
-    mus[1] = 1.05e11; // Charon
-    char *names[2] = {"Pluto", "Charon"};
-    
     // Draw loop variables. For now a const, when I get futher along I'll mess with this a bit
     const double scale = min(w, h) / 2.0 / (17527090.2 * 1.1);
 
@@ -126,15 +169,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         char buf[bufLen];
         // Row 1: "Simulating 2 bodies"
-        snprintf(buf, bufLen, "Simulating %u bodies", num);
+        snprintf(buf, bufLen, "Simulating %d bodies", num);
         SDL_RenderDebugText(renderer, 10, 10, buf);
         // Row 2: "Pluto, Charon"
         size_t bufIdx = 0;
-        for (size_t i = 0; i < num - 1; i++) {
-            snprintf(buf + bufIdx, bufLen - bufIdx, "%s, ", names[i]);
-            bufIdx += strlen(names[i]) + 2;
+        for (size_t i = 0; i + 1 < static_cast<size_t>(num); i++) {
+            snprintf(buf + bufIdx, bufLen - bufIdx, "%s, ", names[i].c_str());
+            bufIdx += names[i].size() + 2;
         }
-        snprintf(buf + bufIdx, bufLen - bufIdx, "%s", names[num-1]);
+        if (num > 0) {
+            snprintf(buf + bufIdx, bufLen - bufIdx, "%s", names[num - 1].c_str());
+        }
         SDL_RenderDebugText(renderer, 10, 20, buf);
 
         SDL_RenderPresent(renderer);
