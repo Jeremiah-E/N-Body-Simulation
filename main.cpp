@@ -12,6 +12,8 @@
 #define resolution 8
 // The multiplier for the simulation's speed. Will be redone later
 #define FACTOR 60
+// The multiplier for the zoom effectiveness
+#define ZOOM_FACTOR (double)(1.0 / 10.0)
 
 // Precomputed sine and cosine values for generating circles
 static double sines[resolution];
@@ -129,8 +131,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     SDL_Renderer* renderer = SDL_CreateRenderer(window, NULL);
     SDL_SetRenderVSync(renderer, 1);
 
-    // Draw loop variables. For now a const, when I get futher along I'll mess with this a bit
-    const double scale = min(w, h) / 2.0 / (17527090.2 * 1.1);
+    // Draw loop variables
+    double scale = 600 / 2.0 / (17527090.2 * 1.1);
 
     // Arrays used for various things inside the draw loop
     // Any array here must be overwritten before being read from
@@ -146,6 +148,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             if (e.type == SDL_EVENT_QUIT) { // The user/computer asked the program to quit
                 // Terminate the loop
                 running = false;
+            } else if (e.type == SDL_EVENT_MOUSE_WHEEL && e.wheel.y != 0) { // The mouse wheel scrolled vertically
+                scale *= 1 + e.wheel.y * ZOOM_FACTOR;
             }
         }
 

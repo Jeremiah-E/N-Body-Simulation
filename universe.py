@@ -5,7 +5,7 @@ import struct
 # Include Charon?
 major_moon = True
 # Include Nix, Hydra, Styx, and Kerberos? (requires major_moon)
-minor_moons = False
+minor_moons = True
 # Where to store the file. Note that changing this requires changing the C++ program as well
 filepath = "universe.bin"
 
