@@ -6,9 +6,8 @@ param(
     [switch]$F
 )
 
-$UserName = $env:USERNAME
-$SDLRoot = "C:/Users/$UserName/vendored/SDL"
-$SDLBuild = "$SDLRoot/build"
+$SDLRoot = Join-Path $env:USERPROFILE "vendored/SDL"
+$SDLBuild = Join-Path $SDLRoot "build"
 
 $commands = @(
     @{
