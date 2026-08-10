@@ -69,8 +69,8 @@ void createCircles(size_t num, float *centers, SDL_Vertex *verts, int *idxs, dou
     }
 }
 
-static const int w = 800;
-static const int h = 600;
+static const int w = 1000;
+static const int h = 1000;
 
 // A "hello, world" program of sorts
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
@@ -127,12 +127,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     // Create the window
     SDL_Init(SDL_INIT_VIDEO);
-    SDL_Window* window = SDL_CreateWindow("Hello, world!", w, h, 0);
+    SDL_Window* window = SDL_CreateWindow("Hello, world!", w, h, SDL_WINDOW_RESIZABLE);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, NULL);
     SDL_SetRenderVSync(renderer, 1);
+    
 
     // Draw loop variables
-    double scale = 600 / 2.0 / (17527090.2 * 1.1);
+    double scale = 1.0 / 2.0 / (17527090.2 * 1.1);
 
     // Arrays used for various things inside the draw loop
     // Any array here must be overwritten before being read from
@@ -156,12 +157,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         // Reset the screen
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
+
+        // Determine scaling based on the window's size
+        int windowWidth;
+        int windowHeight;
+        SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+        double screenScale = scale * (windowWidth < windowHeight ? windowWidth : windowHeight);
         
         // Set up the circle
         // When I allow for rotation, I will make this its own function
         for (size_t i = 0; i < num; i++) {
-            centers[i*2] = positions[i * 2 + 0] * scale + w / 2;
-            centers[i*2+1] = -positions[i * 2 + 1] * scale + h / 2;
+            centers[i*2]   = (float)(positions[i * 2 + 0] * screenScale + windowWidth  / 2.0);
+            centers[i*2+1] = (float)(-positions[i * 2 + 1] * screenScale + windowHeight / 2.0);
         }
         createCircles(num, centers.get(), verts.get(), idxs.get(), 10);
         
