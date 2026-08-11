@@ -87,19 +87,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         // Get num
         universe.read(reinterpret_cast<char*>(&num), sizeof(int));
         // Create the pointer arrays/vector for everything
-        positions = std::make_unique<double[]>(num * 2);
-        velocities = std::make_unique<double[]>(num * 2);
-        accelerations = std::make_unique<double[]>(num * 2);
+        positions = std::make_unique<double[]>(num * 3);
+        velocities = std::make_unique<double[]>(num * 3);
+        accelerations = std::make_unique<double[]>(num * 3);
         mus = std::make_unique<double[]>(num);
         names.reserve(num); // Vectors can be any size, so we tell it to reserve this size instead of dynamically allocating itself
         // Load positions
-        for (int i = 0; i < num * 2; i++) {
+        for (int i = 0; i < num * 3; i++) {
             double value;
             universe.read(reinterpret_cast<char*>(&value), sizeof(value));
             positions[i] = value;
         }
         // Load velocities
-        for (int i = 0; i < num * 2; i++) {
+        for (int i = 0; i < num * 3; i++) {
             double value;
             universe.read(reinterpret_cast<char*>(&value), sizeof(value));
             velocities[i] = value;
@@ -137,6 +137,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     // Arrays used for various things inside the draw loop
     // Any array here must be overwritten before being read from
+    // y is flipped from expected, but +y is completely arbitrary anyways
     auto centers = std::make_unique<float[]>(num*2);
     auto verts = std::make_unique<SDL_Vertex[]>((resolution + 1) * num);
     auto idxs = std::make_unique<int[]>(num*resolution*3);
@@ -167,8 +168,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         // Set up the circle
         // When I allow for rotation, I will make this its own function
         for (size_t i = 0; i < num; i++) {
-            centers[i*2]   = (float)(positions[i * 2 + 0] * screenScale + windowWidth  / 2.0);
-            centers[i*2+1] = (float)(-positions[i * 2 + 1] * screenScale + windowHeight / 2.0);
+            centers[i * 2 + 0] = (float)(positions[i * 3 + 0] * screenScale + windowWidth  / 2.0);
+            centers[i * 2 + 1] = (float)(positions[i * 3 + 1] * screenScale + windowHeight / 2.0);
         }
         createCircles(num, centers.get(), verts.get(), idxs.get(), 10);
         
@@ -205,40 +206,44 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         for (size_t i = 0; i < num; i++) {
             for (size_t j = 0; j < num; j++) {
                 if (i != j) {
-                    double dx = positions[j * 2 + 0] - positions[i * 2 + 0];
-                    double dy = positions[j * 2 + 1] - positions[i * 2 + 1];
-                    double dist2 = dx * dx + dy * dy;
+                    double dx = positions[j * 3 + 0] - positions[i * 3 + 0];
+                    double dy = positions[j * 3 + 1] - positions[i * 3 + 1];
+                    double dz = positions[j * 3 + 2] - positions[i * 3 + 2];
+                    double dist2 = dx * dx + dy * dy + dz * dz;
                     double dist = sqrt(dist2);
                     double invDist3 = 1.0 / (dist2 * dist);
-                    accelerations[i * 2 + 0] += dx * mus[j] * invDist3;
-                    accelerations[i * 2 + 1] += dy * mus[j] * invDist3;
+                    accelerations[i * 3 + 0] += dx * mus[j] * invDist3;
+                    accelerations[i * 3 + 1] += dy * mus[j] * invDist3;
+                    accelerations[i * 3 + 2] += dz * mus[j] * invDist3;
                 }
             }
         }
         // Perform a half-step
-        for (size_t i = 0; i < num * 2; i++) {
+        for (size_t i = 0; i < num * 3; i++) {
             velocities[i] += accelerations[i] * FACTOR / 2.0;
             positions[i] += velocities[i] * FACTOR;
         }
         // Update acceleration again
-        for (size_t i = 0; i < num * 2; i++) {
+        for (size_t i = 0; i < num * 3; i++) {
             accelerations[i] = 0.0;
         }
         for (size_t i = 0; i < num; i++) {
             for (size_t j = 0; j < num; j++) {
                 if (i != j) {
-                    double dx = positions[j * 2 + 0] - positions[i * 2 + 0];
-                    double dy = positions[j * 2 + 1] - positions[i * 2 + 1];
-                    double dist2 = dx * dx + dy * dy;
+                    double dx = positions[j * 3 + 0] - positions[i * 3 + 0];
+                    double dy = positions[j * 3 + 1] - positions[i * 3 + 1];
+                    double dz = positions[j * 3 + 2] - positions[i * 3 + 2];
+                    double dist2 = dx * dx + dy * dy + dz * dz;
                     double dist = sqrt(dist2);
                     double invDist3 = 1.0 / (dist2 * dist);
-                    accelerations[i * 2 + 0] += dx * mus[j] * invDist3;
-                    accelerations[i * 2 + 1] += dy * mus[j] * invDist3;
+                    accelerations[i * 3 + 0] += dx * mus[j] * invDist3;
+                    accelerations[i * 3 + 1] += dy * mus[j] * invDist3;
+                    accelerations[i * 3 + 2] += dz * mus[j] * invDist3;
                 }
             }
         }
         // Another half-step
-        for (size_t i = 0; i < num * 2; i++) {
+        for (size_t i = 0; i < num * 3; i++) {
             velocities[i] += accelerations[i] * FACTOR / 2.0;
         }
     }

@@ -23,35 +23,35 @@ names = ["Pluto", "Charon", "Nix", "Hydra", "Styx", "Kerberos"]
 
 # Build the system
 if not major_moon:
-    positions = [0, 0]
-    velocities = [0, 0]
+    positions = [0, 0, 0]
+    velocities = [0, 0, 0]
     mus = [8.71e11]
     num = 1
 else:
     # Pluto and Charon
-    bodies = [{"pos": [-2112909.83, 0], "vel": [0, -23.9824556], "mu": 8.71e11}, {"pos": [17527090.2, 0], "vel": [0, 198.940179], "mu": 1.05e11}]
+    bodies = [{"pos": [-2112909.83, 0, 0], "vel": [0, -23.9824556, 0], "mu": 8.71e11}, {"pos": [17527090.2, 0, 0], "vel": [0, 198.940179, 0], "mu": 1.05e11}]
     num = 2
     if minor_moons:
         num = 6
         # Nix
-        bodies.append({"pos": [48694000, 0], "vel": [0, 141.55], "mu": 3003435})
+        bodies.append({"pos": [48694000, 0, 0], "vel": [0, 141.55, 0], "mu": 3003435})
         # Hydra
-        bodies.append({"pos": [64738000, 0], "vel": [0, 122.77], "mu": 3203664})
+        bodies.append({"pos": [64738000, 0, 0], "vel": [0, 122.77, 0], "mu": 3203664})
         # Styx
-        bodies.append({"pos": [42656000, 0], "vel": [0, 151.25], "mu": 500572.5})
+        bodies.append({"pos": [42656000, 0, 0], "vel": [0, 151.25, 0], "mu": 500572.5})
         # Kerberos
-        bodies.append({"pos": [57783000, 0], "vel": [0, 129.95], "mu": 1067888})
+        bodies.append({"pos": [57783000, 0, 0], "vel": [0, 129.95, 0], "mu": 1067888})
     # Some hastily written code to go from an easy-to-code AoS to the expected SoA format I want in the binary file
     for body in bodies:
-        px, py = body["pos"]
-        positions.append(px) ; positions.append(py)
-        vx, vy = body["vel"]
-        velocities.append(vx) ; velocities.append(vy)
+        px, py, pz = body["pos"]
+        positions.append(px) ; positions.append(py) ; positions.append(pz)
+        vx, vy, vz = body["vel"]
+        velocities.append(vx) ; velocities.append(vy) ; velocities.append(vz)
         mus.append(body["mu"])
 
 # Ensure we didn't mess up generating the arrays *too* much
-assert len(positions) == num * 2, "Positions has an incorrect length"
-assert len(velocities) == num * 2, "Velocities has an incorrect length"
+assert len(positions) == num * 3, "Positions has an incorrect length"
+assert len(velocities) == num * 3, "Velocities has an incorrect length"
 assert len(mus) == num, "Mus has an incorrect length"
 
 # Shift the reference frame to keep the center of mass and net momentum zero
@@ -60,25 +60,33 @@ if num > 0:
     total_mass = sum(mus)
     com_x = 0.0
     com_y = 0.0
+    com_z = 0.0
     mom_x = 0.0
     mom_y = 0.0
-    for i in range(0, len(positions), 2):
-        mass = mus[i // 2]
-        x = positions[i]
+    mom_z = 0.0
+    for i in range(0, len(positions), 3):
+        mass = mus[i // 3]
+        x = positions[i + 0]
         y = positions[i + 1]
-        vx = velocities[i]
+        z = positions[i + 2]
+        vx = velocities[i + 0]
         vy = velocities[i + 1]
-        com_x += x * mass ; com_y += y * mass
-        mom_x += vx * mass ; mom_y += vy * mass
+        vz = velocities[i + 2]
+        com_x += x * mass ; com_y += y * mass ; com_z += z * mass
+        mom_x += vx * mass ; mom_y += vy * mass ; mom_z += vz * mass
     com_x /= total_mass
     com_y /= total_mass
+    com_z /= total_mass
     vcm_x = mom_x / total_mass
     vcm_y = mom_y / total_mass
-    for i in range(0, len(positions), 2):
-        positions[i] -= com_x
+    vcm_z = mom_z / total_mass
+    for i in range(0, len(positions), 3):
+        positions[i + 0] -= com_x
         positions[i + 1] -= com_y
-        velocities[i] -= vcm_x
+        positions[i + 2] -= com_z
+        velocities[i + 0] -= vcm_x
         velocities[i + 1] -= vcm_y
+        velocities[i + 2] -= vcm_z
 # And back to handwritten code
 
 # Pack a piece of data into a type
@@ -95,16 +103,18 @@ def pack(data, type):
 with open(filepath, 'wb') as file:
     # An int
     file.write(pack(num, 'int'))
-    # A double[] of len 2*num
+    # A double[] of len 3*num
     for i in range(num):
-        x, y = positions[2*i], positions[2*i+1]
+        x, y, z = positions[3*i:3*i+3]
         file.write(pack(x,'float'))
         file.write(pack(y,'float'))
+        file.write(pack(z,'float'))
     # A double[] of len 2*num
     for i in range(num):
-        x, y = velocities[2*i], velocities[2*i+1]
+        x, y, z = velocities[3*i:3*i+3]
         file.write(pack(x,'float'))
         file.write(pack(y,'float'))
+        file.write(pack(z,'float'))
     # A double[] of len num
     for i in range(num):
         file.write(pack(mus[i],'float'))
