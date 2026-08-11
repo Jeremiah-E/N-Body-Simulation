@@ -1,0 +1,5 @@
+.vscode/
+build/
+SDL3.dll
+NBody.exe
+universe.bin
