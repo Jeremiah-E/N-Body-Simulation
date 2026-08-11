@@ -1,4 +1,4 @@
-# I don't feel like running three commands every time I want to run the program, so here's a script to do so
+# A script to install SDL and compile the program. Warning: the first running of the program will take time to install/configure SDL's library
 # If you pass -F, skip SDL configure/build for a faster compilation.
 # Use this only when SDL or the build configuration hasn't changed.
 
@@ -6,8 +6,25 @@ param(
     [switch]$F
 )
 
+# Filepaths we need to keep track of
 $SDLRoot = Join-Path $env:USERPROFILE "vendored/SDL"
 $SDLBuild = Join-Path $SDLRoot "build"
+$SDLInstall = Join-Path $SDLRoot "install"
+
+# Check if SDL exists
+if (!(Test-Path -Path $SDLRoot)) {
+    $command = {git clone https://github.com/libsdl-org/SDL.git $SDLRoot}
+    $message = "Install SDL"
+    # See the foreach block near the end for comments on this
+    $output = & $command 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[Success] -" $message -ForegroundColor Green
+    } else {
+        Write-Host "[Failure] -" $message -ForegroundColor Red
+        $output
+        exit 1
+    }
+}
 
 $commands = @(
     @{
@@ -16,6 +33,10 @@ $commands = @(
     }
     @{
         command = {cmake --build $SDLBuild --config Release };
+        message = "Build SDL with CMake"
+    }
+    @{
+        command = {cmake --install $SDLBuild --prefix $SDLInstall};
         message = "Install SDL to vendored/install"
     }
     @{
@@ -53,6 +74,6 @@ foreach ($instruction in $commands) {
     else {
         Write-Host "[Failure] -" $message -ForegroundColor Red
         $output
-        break
+        exit 1
     }
 }

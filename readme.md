@@ -6,7 +6,7 @@ Do note that this is my third time simulating the solar system, once in a Python
 
 # Support
 
-I have no means to test this on other operating systems than my own, so I intentionally only code for Windows. It requires the SDL3 library installed on the computer in `C:/User/{USERNAME}/vendored`. If you don't have SDL installed, run `git clone https://github.com/libsdl-org/SDL.git vendored/SDL`.
+I have no means to test this on other operating systems than my own, so I intentionally only code for Windows. Huge thanks to Weffuls for making `setup.ps1` more portable.
 
 # Progress so far
 
