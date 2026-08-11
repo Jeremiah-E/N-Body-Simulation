@@ -103,6 +103,6 @@ foreach ($instruction in $commands) {
             exit 1
         }
     } else {
-        Write-Host "[$skipmark] - Skipped $message - $reason" -ForegroundColor DarkGray
+        Write-Host "[$skipmark] - Skipped '$message' - $reason" -ForegroundColor DarkGray
     }
 }
