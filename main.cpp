@@ -69,10 +69,11 @@ void createCircles(size_t num, float *centers, SDL_Vertex *verts, int *idxs, dou
     }
 }
 
+// TODO: have the window size itself based on your monitor
+// Low priority since it can be resized
 static const int w = 1000;
-static const int h = 1000;
+static const int h = 800;
 
-// A "hello, world" program of sorts
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
     // Initialize data
     int num;
@@ -166,7 +167,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         double screenScale = scale * (windowWidth < windowHeight ? windowWidth : windowHeight);
         
         // Set up the circle
-        // When I allow for rotation, I will make this its own function
+        // TODO: add a `screenPositions` variable to handle all coordinate transformations
         for (size_t i = 0; i < num; i++) {
             centers[i * 2 + 0] = (float)(positions[i * 3 + 0] * screenScale + windowWidth  / 2.0);
             centers[i * 2 + 1] = (float)(positions[i * 3 + 1] * screenScale + windowHeight / 2.0);
@@ -197,6 +198,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         SDL_RenderPresent(renderer);
 
         // We're out of our draw loop and into our computation loop
+        // TODO: move this elsewhere, into its own file
         
         // Perform verlet integration
         // Update acceleration

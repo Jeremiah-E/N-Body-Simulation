@@ -19,16 +19,16 @@ I have a general structure for how bodies will be stored, as four different `dou
 
 Bodies are no longer hardcoded in `main.cpp`. Instead, a Python script (`universe.py`) generates a `universe.bin` file describing the system (body count, positions, velocities, gravitational parameters, and names), which `main.cpp` reads at startup. `universe.py` currently supports toggling Pluto/Charon and the four minor moons (Nix, Hydra, Styx, Kerberos) on and off, and automatically re-centers the system so the center of mass stays fixed with zero net momentum.
 
-Right now, I draw the loaded bodies' positions and then perform velocity-verlet integration to find their position for the next frame. Right now the simulation is 2D, but I have plans on how to change that later. For now, everything is in a plane, so there's no need to add 3D vectors yet.
+Right now, I draw the loaded bodies' positions and then perform velocity-verlet integration to find their position for the next frame.
 
 # Planned goals of note
 
-I want to have two files (read at runtime) that determine two properties:
-1. What planets are loaded in (e.g. Earth/Moon or Earth/Moon/Sun/Mars, etc.). [In-progress]
-2. A mission profile, with an optional `NO PROFILE` as to let you just view the solar system.
+Given the scope creep that will forever permiate the project, here's some goals for me to work towards.
 
-I might write a program to make editing these files easier, but haven't decided yet. If I do, I'll most likely have a Python program where you check boxes for planets, set the epoch, and plan the mission.
+Well-defined goals:
+- Allow for rotation of the screen.<br>3D coordinates exist but are unused. (High priority)
+- Expand the simulation to the solar system.<br>Right now the universe consists of Pluto and five moons. (High priority)
+- Introduce a new rendering system for the planets.<br>There's a million texture files online of the major planets, and I assume I can figure it out for the moons. I'm looking to have the simulation look something akin to Celestia. Do note that this goal will likely wait until after the mission planning is in, as I'd like to pre-compute where everything is before starting to draw, instead of doing both expensive(?) rendering and integration at the same time. (Low priority)
 
-I want to support up to ~100 bodies, although odds are I land around ~70. The planets are a definite yes, although I want to allow you to plan an asteroid mission if you want to.
-
-Ideally, I want to be able to have the program store each point of your mission. Luckily, C++ is much easier to do dynamic allocation in than C.
+Not well-defined goals:
+- Mission planning.<br>I want to be able to set up a base mission and target parameters (Δv budget, target orbit, etc.) and have the program brute force more optimal solutions, either quicker or more Δv efficient. Have yet to decide how any of this will work. (Medium priority)
