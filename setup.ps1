@@ -15,16 +15,9 @@ $SDLBuild = Join-Path $SDLRoot "build"
 $SDLInstall = Join-Path $SDLRoot "install"
 
 # Success/failure characters for compatibility
-$checkmark = "$([char]0x2713)" # https://www.compart.com/en/unicode/U+2713
+$checkmark = "+"
 $skipmark = "-"
-$crossmark = "$([char]0x2717)" # https://www.compart.com/en/unicode/U+2717
-# Fallbacks if Unicode doesn't work
-$unicodeCheck = [Console]::OutputEncoding.CodePage -eq 65001
-if (!$unicodeCheck) {
-    $checkmark = "+"
-    $skipmark = "-"
-    $crossmark = "x"
-}
+$crossmark = "x"
 
 # Commands to run
 $commands = @(
