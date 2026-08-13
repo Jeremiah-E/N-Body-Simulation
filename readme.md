@@ -26,9 +26,8 @@ Right now, I draw the loaded bodies' positions and then perform velocity-verlet 
 Given the scope creep that will forever permiate the project, here's some goals for me to work towards.
 
 Well-defined goals:
-- Allow for rotation of the screen.<br>3D coordinates exist but are unused. (High priority)
 - Expand the simulation to the solar system.<br>Right now the universe consists of Pluto and five moons. (High priority)
-- Introduce a new rendering system for the planets.<br>There's a million texture files online of the major planets, and I assume I can figure it out for the moons. I'm looking to have the simulation look something akin to Celestia. Do note that this goal will likely wait until after the mission planning is in, as I'd like to pre-compute where everything is before starting to draw, instead of doing both expensive(?) rendering and integration at the same time. (Low priority)
+- Introduce a new rendering system for the planets.<br>There's a million texture files online of the major planets, and I assume I can figure it out for the moons. I'm looking to have the simulation look something akin to Celestia. Do note that this goal will likely wait until after the mission planning is in, as I'd like to pre-compute where everything is before starting to draw, instead of doing both expensive(?) rendering and integration at the same time. (Medium priority)
 
 Not well-defined goals:
 - Mission planning.<br>I want to be able to set up a base mission and target parameters (Δv budget, target orbit, etc.) and have the program brute force more optimal solutions, either quicker or more Δv efficient. Have yet to decide how any of this will work. (Medium priority)

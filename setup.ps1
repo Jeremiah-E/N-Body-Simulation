@@ -7,6 +7,8 @@ param(
     [switch]$F # "Fast" mode, skips SDL configuration
 )
 
+$displaySkipped = $true
+
 # Filepaths we need to keep track of
 $SDLRoot = Join-Path $env:USERPROFILE "vendored/SDL"
 $SDLBuild = Join-Path $SDLRoot "build"
@@ -102,7 +104,7 @@ foreach ($instruction in $commands) {
             $output
             exit 1
         }
-    } else {
+    } elseif ($displaySkipped) {
         Write-Host "[$skipmark] - Skipped '$message' - $reason" -ForegroundColor DarkGray
     }
 }

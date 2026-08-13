@@ -17,6 +17,7 @@ minor_moons = major_moon and minor_moons
 positions = []
 velocities = []
 mus = []
+rads = []
 num = 0
 # Regardless of settings, this is the order we put bodies into the array
 names = ["Pluto", "Charon", "Nix", "Hydra", "Styx", "Kerberos"]
@@ -26,21 +27,25 @@ if not major_moon:
     positions = [0, 0, 0]
     velocities = [0, 0, 0]
     mus = [8.71e11]
+    rads = [1188000]
     num = 1
 else:
     # Pluto and Charon
-    bodies = [{"pos": [-2112909.83, 0, 0], "vel": [0, -23.9824556, 0], "mu": 8.71e11}, {"pos": [17527090.2, 0, 0], "vel": [0, 198.940179, 0], "mu": 1.05e11}]
+    bodies = [
+        {"pos": [-2112909.83, 0, 0], "vel": [0, -23.9824556, 0], "mu": 8.71e11, "rad": 1188000},
+        {"pos": [17527090.2, 0, 0], "vel": [0, 198.940179, 0], "mu": 1.05e11, "rad": 606000}
+    ]
     num = 2
     if minor_moons:
         num = 6
         # Nix
-        bodies.append({"pos": [48694000, 0, 0], "vel": [0, 141.55, 0], "mu": 3003435})
+        bodies.append({"pos": [48694000, 0, 0], "vel": [0, 141.55, 0], "mu": 3003435, "rad": 25000})
         # Hydra
-        bodies.append({"pos": [64738000, 0, 0], "vel": [0, 122.77, 0], "mu": 3203664})
+        bodies.append({"pos": [64738000, 0, 0], "vel": [0, 122.77, 0], "mu": 3203664, "rad": 31000})
         # Styx
-        bodies.append({"pos": [42656000, 0, 0], "vel": [0, 151.25, 0], "mu": 500572.5})
+        bodies.append({"pos": [42656000, 0, 0], "vel": [0, 151.25, 0], "mu": 500572.5, "rad": 5000})
         # Kerberos
-        bodies.append({"pos": [57783000, 0, 0], "vel": [0, 129.95, 0], "mu": 1067888})
+        bodies.append({"pos": [57783000, 0, 0], "vel": [0, 129.95, 0], "mu": 1067888, "rad": 8500})
     # Some hastily written code to go from an easy-to-code AoS to the expected SoA format I want in the binary file
     for body in bodies:
         px, py, pz = body["pos"]
@@ -48,11 +53,14 @@ else:
         vx, vy, vz = body["vel"]
         velocities.append(vx) ; velocities.append(vy) ; velocities.append(vz)
         mus.append(body["mu"])
+        rads.append(body["rad"])
 
 # Ensure we didn't mess up generating the arrays *too* much
 assert len(positions) == num * 3, "Positions has an incorrect length"
 assert len(velocities) == num * 3, "Velocities has an incorrect length"
 assert len(mus) == num, "Mus has an incorrect length"
+# We don't check names since we crop it out later - this will change in time
+assert len(rads) == num, "Rads has an incorrect length"
 
 # Shift the reference frame to keep the center of mass and net momentum zero
 # This block is AI generated
@@ -121,3 +129,6 @@ with open(filepath, 'wb') as file:
     # A str[] of hard-to-predict length
     for name in names[0:num]:
         file.write(pack(name, 'string'))
+    # A double[] of len num (radii in meters)
+    for i in range(num):
+        file.write(pack(rads[i],'float'))
