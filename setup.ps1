@@ -89,8 +89,10 @@ foreach ($instruction in $commands) {
         $output = & $command 2>&1
     
         # If no error happened, print the short description of the command
-        if ($LASTEXITCODE -eq 0 -and !$Q) {
-            Write-Host "[$checkmark] - $message" -ForegroundColor Green
+        if ($LASTEXITCODE -eq 0) {
+            if (!$Q) {
+                Write-Host "[$checkmark] - $message" -ForegroundColor Green
+            }
         }
         # Otherwise, print the description *and* the output of the command
         else {
