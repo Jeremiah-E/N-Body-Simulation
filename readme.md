@@ -14,7 +14,7 @@ I have a general structure for how bodies will be stored, as five different `dou
 1. Position
 2. Velocity
 3. Acceleration
-4. Gravitational parameter<br>(Mass times a constant $G$, roughly $6.67\cdot 10^{-11} \frac{\text{m}^3}{\text{kg}\text{s}^2}$. This is easier to measure than just mass, and it means we don't need to store $G$ anywhere)
+4. Gravitational parameter<br>(Mass times a constant $G$, roughly $6.67\cdot 10^{-11} \frac{\text{m}^3}{\text{kg}\thinspace{}\text{s}^2}$. This is easier to measure than just mass, and it means we don't need to store $G$ anywhere)
 5. Radius
 6. Name
 
@@ -32,4 +32,4 @@ Well-defined goals:
 - Introduce a new rendering system for the planets.<br>There's a million texture files online of the major planets, and I assume I can figure it out for the moons. I'm looking to have the simulation look something akin to Celestia. I'll have to look into 3D rendering tools like OpenGl for this. (Low priority)
 
 Not well-defined goals:
-- Mission planning.<br>I want to be able to set up a base mission and target parameters (Δv budget, target orbit, etc.) and have the program brute force more optimal solutions, either quicker or more Δv efficient. Have yet to decide how any of this will work. This will entail a Python program for the manual creation of an initial mission profile (similar to tweaking maneuver nodes in KSP, somewhere between vanilla and [Principia](https://github.com/mockingbirdnest/Principia)) using patched conics terminology to describe n-body motion ("Burn +0.03m/s2 prograde rel. to ECI at T+30hr for 20s"). Once this crude but working baseline is established—along with restrictions and goals (e.g., "Orbit Mars at these orbital parameters" and acceleration budgets based on staging) the C++ engine will take over to computationally optimize and brute-force the most efficient solution. (Medium priority)
+- Mission planning.<br>I want to be able to set up a base mission and target parameters (Δv budget, target orbit, etc.) and have the program brute force more optimal solutions, either quicker or more Δv efficient. Have yet to decide how any of this will work. This will entail a Python program for the manual creation of an initial mission profile (similar to tweaking maneuver nodes in KSP, somewhere between vanilla and [Principia](https://github.com/mockingbirdnest/Principia)) using patched conics terminology to describe n-body motion (i.e. "Burn +0.03m/s2 prograde rel. to ECI at T+30hr for 20s"). Once this crude but working baseline is established, along with restrictions and goals (i.e. "Orbit Mars at these orbital parameters" and acceleration budgets based on staging) the C++ engine will take over to optimize and brute-force a better solution. (Medium priority)
