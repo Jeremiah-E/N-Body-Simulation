@@ -8,11 +8,14 @@
 #include <cmath>
 #include <cstdio>
 #include <type_traits>
+#include <algorithm>
+
+#pragma region Constants
 
 // The number of triangles in each circle
 #define RESOLUTION 16
 // The multiplier for the simulation's speed. Will be redone later
-#define FACTOR 60
+#define FACTOR 360
 // The multiplier for the zoom effectiveness
 #define ZOOM_FACTOR (double)(1.0 / 10.0)
 
@@ -22,15 +25,18 @@ static double cosines[RESOLUTION];
 static bool sincosInit = false;
 
 // Camera constants
-static double const fov = 2.0943951; // 120° in radians
-static double const projectionScale = 1.0 / tan(fov / 2.0); // ~0.577
+static double const fov = 1.5707963; // 90°
+static double const projectionScale = 1.0 / tan(fov / 2.0); // Exactly 1, but we keep it here incase we want to change fov
 // Camera variables
 static double camDist = 19640000 * 1.1; // The distance from the cIdxth body
 static double pitch = 0; // Determines which angle the camera points at cIdx from
 static double yaw = 0;   // Determines which angle the camera points at cIdx from
 static size_t cIdx = 0; // The camera is camDist away from {positions[cIdx*3+0], positions[cIdx*3+1], positions[cIdx*3+2]}
-static float minScale = 3; // The minimum size
+static float minScale = 3; // The minimum size of a body. When textures are introduced, this will determine when something's a point
 
+#pragma endregion Constants
+
+#pragma region Vector
 // 3D vector of any arithmetic type
 template <typename T> struct Vec3D {
     // Compile-time assert statement to ensure that T is something that allows math operations
@@ -113,9 +119,11 @@ template <typename T> struct Vec3D {
 
 // To flip the y axis. Might change this later to align with some plane
 static const Vec3D<double> worldUp = {0, -1, 0};
+#pragma endregion Vector
 
+#pragma region Circle Drawing
 // Given an array of centers, store the points of the circle in the vertex array
-void createCircles(size_t num, float *centers, SDL_Vertex *verts, int *idxs, float *sizes, double *newNum) {
+void createCircles(const size_t num, float *centers, SDL_Vertex *verts, int *idxs, float *sizes, double *newNum, const size_t cIdx) {
     // Precompute angles. Ideally, this'd be done in WinMain as I want to try and make this multithreaded later
     // For now, I'll leave it since I've already done way more premature optimization than I should've
     if (!sincosInit) {
@@ -127,20 +135,61 @@ void createCircles(size_t num, float *centers, SDL_Vertex *verts, int *idxs, flo
         sincosInit = true;
     }
 
-    // Filter out entries with size == 0 and compact the arrays
+    // Filter out entries with invalid size and compact the arrays
+    // This culls shapes off screen, given how this function is used in the draw loop
     size_t validIdx = 0;
+    size_t postCullCIdx = cIdx;
+    bool isCIdxCulled = false;
     for (size_t i = 0; i < num; i++) {
-        if (sizes[i] == -1) {
+        if (sizes[i] <= 0.0) {
+            // i was invalid, so we know there's one less valid object
             (*newNum)--;
+            // If we get here, sizes[cIdx] was invalid
+            if (i == cIdx) { isCIdxCulled = true; }
         } else {
+            // Move cIdx as needed
+            if (i == cIdx) {
+                postCullCIdx = validIdx;
+            }
             // Move this entry to validIdx position
             if (validIdx != i) {
-                centers[validIdx * 2 + 0] = centers[i * 2 + 0];
-                centers[validIdx * 2 + 1] = centers[i * 2 + 1];
+                centers[validIdx * 3 + 0] = centers[i * 3 + 0];
+                centers[validIdx * 3 + 1] = centers[i * 3 + 1];
+                centers[validIdx * 3 + 2] = centers[i * 3 + 2];
                 sizes[validIdx] = sizes[i];
             }
             validIdx++;
         }
+    }
+
+    // Sort entries by their z value, for draw-order reasons
+    // We create a list of indices, for now in original order
+    std::vector<size_t> sortedIndices(*newNum);
+    for (size_t i = 0; i < *newNum; i++) {
+        sortedIndices[i] = i;
+    }
+    // Sort the values by the z coordinate of centers
+    std::sort(sortedIndices.begin(), sortedIndices.end(), [&centers](size_t a, size_t b) {return centers[a * 3 + 2] > centers[b * 3 + 2];});
+    // Store everything in temp arrays according to sortedIndices
+    std::vector<float> tempCenters(*newNum * 3);
+    std::vector<float> tempSizes(*newNum);
+    for (size_t i = 0; i < *newNum; i++) {
+        tempCenters[i * 3 + 0] = centers[sortedIndices[i] * 3 + 0];
+        tempCenters[i * 3 + 1] = centers[sortedIndices[i] * 3 + 1];
+        tempCenters[i * 3 + 2] = centers[sortedIndices[i] * 3 + 2];
+        tempSizes[i] = sizes[sortedIndices[i]];
+    }
+    // Insert the temp arrays back
+    for (size_t i = 0; i < *newNum; i++) {
+        centers[i * 3 + 0] = tempCenters[i * 3 + 0];
+        centers[i * 3 + 1] = tempCenters[i * 3 + 1];
+        centers[i * 3 + 2] = tempCenters[i * 3 + 2];
+        sizes[i] = tempSizes[i];
+    }
+    // Store the old indices
+    std::vector<size_t> inverseSortedIndices(*newNum);
+    for (size_t i = 0; i < *newNum; i++) {
+        inverseSortedIndices[sortedIndices[i]] = i;
     }
 
     // We assume verts is [resolution+1] times the length of newNum
@@ -148,8 +197,8 @@ void createCircles(size_t num, float *centers, SDL_Vertex *verts, int *idxs, flo
     // Since each iteration does not mess with the last, I hint the compiler parallelize it
     #pragma loop(hint_parallel(0))
     for (size_t i = 0; i < (size_t)*newNum; i++) {
-        double cx = centers[i * 2 + 0];
-        double cy = centers[i * 2 + 1];
+        double cx = centers[i * 3 + 0];
+        double cy = centers[i * 3 + 1];
         // Our local verts array
         SDL_Vertex *_verts = verts + (RESOLUTION + 1) * i;
         for (size_t j = 0; j < RESOLUTION; j++) {
@@ -160,10 +209,15 @@ void createCircles(size_t num, float *centers, SDL_Vertex *verts, int *idxs, flo
         _verts[RESOLUTION].position = {(float)cx, (float)cy};
     }
 
-    // Clear the color to red
+    // Clear the color to red or blue, depending on cIdx
     const size_t numVert = (size_t)*newNum * (RESOLUTION + 1);
+    size_t finalCIdx = isCIdxCulled ? (size_t)-1 : inverseSortedIndices[postCullCIdx];
     for (size_t i = 0; i < numVert; i++) {
-        verts[i].color = {1, 0, 0, 1};
+        if (!isCIdxCulled && (i / (RESOLUTION + 1) == finalCIdx)) {
+            verts[i].color = {0, 0, 1, 1}; // Blue
+        } else {
+            verts[i].color = {1, 0, 0, 1}; // Red
+        }
     }
 
     // Build triangle indices for each circle
@@ -178,13 +232,10 @@ void createCircles(size_t num, float *centers, SDL_Vertex *verts, int *idxs, flo
         }
     }
 }
-
-// TODO: have the window size itself based on your monitor
-// Low priority since it can be resized
-static const int w = 1000;
-static const int h = 800;
+#pragma endregion Circle Drawing
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+    #pragma region File Loading
     // Initialize data
     int num;
     std::unique_ptr<double []> positions;
@@ -235,25 +286,33 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         // The file could not open
         return 1;
     }
+    #pragma endregion File Loading
 
-    // Create the window
+    #pragma region Create Window
     SDL_Init(SDL_INIT_VIDEO);
-    SDL_Window* window = SDL_CreateWindow("Pluto System", w, h, SDL_WINDOW_RESIZABLE);
+    // Get monitor details
+    int count;
+    SDL_DisplayID* displays = SDL_GetDisplays(&count);
+    const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(displays[0]);
+    SDL_free(displays);
+    // Now create the window
+    SDL_Window* window = SDL_CreateWindow("Pluto System", mode->w / 2.0, mode->h / 2.0, SDL_WINDOW_RESIZABLE);
+    // Move it to the desired location, centering it on the screen
+    SDL_SetWindowPosition(window, mode->w / 4.0, mode->h / 4.0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, NULL);
     SDL_SetRenderVSync(renderer, 1);
+    #pragma endregion Create Window
     
-    // Draw loop variables
-    double scale = 1.0 / 2.0 / (17527090.2 * 1.1);
-
     // Arrays used for various things inside the draw loop
     // Any array here must be overwritten before being read from
     auto sizes = std::make_unique<float[]>(num);
-    auto centers = std::make_unique<float[]>(num*2); // Screen translated coords
+    auto centers = std::make_unique<float[]>(num*3); // Screen translated coords
     auto verts = std::make_unique<SDL_Vertex[]>((RESOLUTION + 1) * num);
     auto idxs = std::make_unique<int[]>(num*RESOLUTION*3);
 
     bool running = true;
     while (running) {
+        #pragma region Event Loop
         // Gets the current events
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
@@ -268,35 +327,50 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                 yaw += e.motion.xrel * (1.0/128.0);
                 pitch += e.motion.yrel * (1.0/512.0);
             }
+            if (e.type == SDL_EVENT_KEY_DOWN) {
+                if (e.key.key == SDLK_LEFTBRACKET) {
+                    cIdx = (cIdx - 1 + num) % num;
+                }
+                if (e.key.key == SDLK_RIGHTBRACKET) {
+                    cIdx = (cIdx + 1) % num;
+                }
+            }
         }
+        #pragma endregion Event Loop
 
+        #pragma region Draw Loop
         // Reset the screen
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
+        #pragma region Camera
         // Determine scaling based on the window's size
         int windowWidth;
         int windowHeight;
         SDL_GetWindowSize(window, &windowWidth, &windowHeight);
         
         // Get what the camera's pointing at
+        // positions + cIdx + 3 points to teh 'cIdx'th planet's position, we effectively treat it as a double[3]
         Vec3D<double> cameraPos(positions.get() + cIdx * 3);
-        // Get the camera position
-        double cosPitch = cos(pitch);
-        double sinPitch = sin(pitch);
-        double cosYaw = cos(yaw);
-        double sinYaw = sin(yaw);
-        // Get the camera's actual position
-        Vec3D<double> offset(cosPitch * sinYaw, sinPitch, cosPitch * cosYaw);
+        // Get the offset of the camera to determine the camera's position
+        Vec3D<double> offset(cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw));
         offset *= camDist;
+        // Finally get the camera's position
         cameraPos += offset;
-        // forwards = -|offset|
-        auto forwards = -offset.norm();
-        // right = |forwards x worldUp|
-        auto right = (forwards ^ worldUp).norm();
-        // up = |right x forwards|
-        auto up = (right ^ forwards).norm();
 
+        // Determine the three coordinate axes of the camera: forwards, right, and up
+        // (Note: I use |v| to describe what's traditionally written as v/|v|, the normalization of a vector)
+        // forwards = -|offset|
+        // (Note: unsure the order of operations here, but -|x| = |-x|, so we don't care in this instance)
+        const auto forwards = -offset.norm();
+        // right = |forwards x worldUp|
+        // (Note: worldUp is completely arbitrary, and not to be confused with up [the camera's coordinate system's 'up' axis])
+        const auto right = (forwards ^ worldUp).norm();
+        // up = |right x forwards|
+        const auto up = (right ^ forwards).norm();
+        #pragma endregion Camera
+
+        #pragma region Projection
         // Set up the circle
         for (size_t i = 0; i < num; i++) {
             // The new, perspective method
@@ -309,23 +383,27 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
             if (zView > 0) {
                 double projFactor = (windowHeight / 2.0) * projectionScale / zView;
-                centers[i * 2 + 0] = (float)(xView * projFactor + windowWidth / 2.0);
-                centers[i * 2 + 1] = (float)(yView * projFactor + windowHeight / 2.0);
+                centers[i * 3 + 0] = (float)(xView * projFactor + windowWidth / 2.0);
+                centers[i * 3 + 1] = (float)(yView * projFactor + windowHeight / 2.0);
+                centers[i * 3 + 2] = (float)(zView); // Used for culling / draw order
                 sizes[i] = max((float)(radii[i] * projFactor), minScale);
             } else {
                 sizes[i] = -1;
             }
             // The old, orthogonal method
+            // Kept here for posterity and in-case perpective methods don't pan out
             // centers[i * 2 + 0] = (float)(positions[i * 3 + 0] * screenScale + windowWidth  / 2.0);
             // centers[i * 2 + 1] = (float)(positions[i * 3 + 1] * screenScale + windowHeight / 2.0);
             // sizes[i] = 10;
         }
         double newNum = num;
-        createCircles(num, centers.get(), verts.get(), idxs.get(), sizes.get(), &newNum);
-        
-        // Draw the circles
-        SDL_RenderGeometry(renderer, NULL, verts.get(), (RESOLUTION + 1) * newNum, idxs.get(), newNum * RESOLUTION * 3);
+        createCircles(num, centers.get(), verts.get(), idxs.get(), sizes.get(), &newNum, cIdx);
 
+        // Draw all circles in a single batched call
+        SDL_RenderGeometry(renderer, NULL, verts.get(), newNum * (RESOLUTION + 1), idxs.get(), newNum * RESOLUTION * 3);
+        #pragma endregion Projection
+
+        #pragma region Text
         // Draw some text
         const size_t bufLen = 50;
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
@@ -335,19 +413,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         SDL_RenderDebugText(renderer, 10, 10, buf);
         // Row 2: "Pluto, Charon"
         size_t bufIdx = 0;
+        // Append each name (barring the last) to buf
         for (size_t i = 0; i + 1 < static_cast<size_t>(num); i++) {
             snprintf(buf + bufIdx, bufLen - bufIdx, "%s, ", names[i].c_str());
             bufIdx += names[i].size() + 2;
         }
-        if (num > 0) {
-            snprintf(buf + bufIdx, bufLen - bufIdx, "%s", names[num - 1].c_str());
-        }
+        // Append the last name to buf
+        snprintf(buf + bufIdx, bufLen - bufIdx, "%s", names[num - 1].c_str());
         SDL_RenderDebugText(renderer, 10, 20, buf);
+        // Row 3: "Centered: Pluto"
+        snprintf(buf, bufLen, "Centered: %s", names[cIdx].c_str());
+        SDL_RenderDebugText(renderer, 10, 30, buf);
+        #pragma endregion Text
 
         SDL_RenderPresent(renderer);
+        #pragma endregion Draw Loop
 
-        // We're out of our draw loop and into our computation loop
-        
+        #pragma region Computation Loop
         // Perform verlet integration
         // Update acceleration
         for (size_t i = 0; i < num * 3; i++) {
@@ -396,6 +478,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         for (size_t i = 0; i < num * 3; i++) {
             velocities[i] += accelerations[i] * FACTOR / 2.0;
         }
+        #pragma endregion Computation Loop
     }
     
     SDL_DestroyRenderer(renderer);
