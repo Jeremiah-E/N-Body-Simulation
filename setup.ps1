@@ -4,7 +4,8 @@
 
 # Our flags
 param(
-    [switch]$F # "Fast" mode, skips SDL configuration
+    [switch]$F, # "Fast" mode, skips SDL configuration
+    [switch]$Q  # "Quiet" mode, omits most prints
 )
 
 $displaySkipped = $true
@@ -88,7 +89,7 @@ foreach ($instruction in $commands) {
         $output = & $command 2>&1
     
         # If no error happened, print the short description of the command
-        if ($LASTEXITCODE -eq 0) {
+        if ($LASTEXITCODE -eq 0 -and !$Q) {
             Write-Host "[$checkmark] - $message" -ForegroundColor Green
         }
         # Otherwise, print the description *and* the output of the command
@@ -97,7 +98,7 @@ foreach ($instruction in $commands) {
             $output
             exit 1
         }
-    } elseif ($displaySkipped) {
+    } elseif ($displaySkipped -and !$Q) {
         Write-Host "[$skipmark] - Skipped '$message' - $reason" -ForegroundColor DarkGray
     }
 }
