@@ -18,7 +18,7 @@ I have a general structure for how bodies will be stored, as five different `dou
 5. Radius
 6. Name
 
-A Python script (`universe.py`) generates a `universe.bin` file describing the system (body count, positions, velocities, gravitational parameters, radii, and names), which `main.cpp` reads at startup. `universe.py` currently supports toggling Charon and the four minor moons of Pluto (Nix, Hydra, Styx, Kerberos) on and off, automatically re-centering the system so the center of mass stays fixed with zero net momentum.
+A Python script (`universe.py`) generates a `universe.bin` file describing the system (body count, positions, velocities, gravitational parameters, radii, and names), which `main.cpp` reads at startup. `universe.py` currently supports toggling various aspects of the solar system. At maximum settings, 47 bodies are simulated. At minimum settings, only the Earth/Sun/Moon are simulated.
 
 Right now, I draw the loaded bodies' positions on screen using perspective projection and 3D camera controls, then perform velocity-verlet integration to find their position for the next frame.
 
@@ -27,9 +27,9 @@ Right now, I draw the loaded bodies' positions on screen using perspective proje
 Given the scope creep that will forever permiate the project, here's some goals for me to work towards.
 
 Well-defined goals:
-- Expand the simulation to the solar system.<br>Right now the universe consists of Pluto and five moons. Will look into variable timestep algorithms to support far and near objects together. (High priority)
-- Decouple physics and rendering.<br>Decouple the computation loop from the draw loop. The physics engine will run headlessly to precompute and record the entire solar system and mission state over a specified timeframe. The simulation will save this timeline, and the draw loop will load it and display the prerecorded data. (High priority)
-- Introduce a new rendering system for the planets.<br>There's a million texture files online of the major planets, and I assume I can figure it out for the moons. I'm looking to have the simulation look something akin to Celestia. I'll have to look into 3D rendering tools like OpenGl for this. (Low priority)
+- Decouple physics and rendering.<br>Decouple the computation loop from the draw loop. The physics engine will run without visuals to precompute and record the entire solar system and mission state over a specified timeframe. The simulation will save this timeline, and the draw loop will load it and display the prerecorded data. (High priority)
+- Introduce Planet Textures.<br>Every body, even Sedna, has either a real image of its surface or an artists rendition out there somewhere. If I want to make this simulation less jarring and easier to follow, having bodies use real imagery would go a long way. Note that Saturn's rings will accompany this step. (Medium priority)
+- Planet Lighting.<br>The sun is largely the main source of light in the solar system. The math to make the solar system lit up will be relatively simple compared to traditional lighting engines. (Low priority)
 
 Not well-defined goals:
 - Mission planning.<br>I want to be able to set up a base mission and target parameters (Δv budget, target orbit, etc.) and have the program brute force more optimal solutions, either quicker or more Δv efficient. Have yet to decide how any of this will work. This will entail a Python program for the manual creation of an initial mission profile (similar to tweaking maneuver nodes in KSP, somewhere between vanilla and [Principia](https://github.com/mockingbirdnest/Principia)) using patched conics terminology to describe n-body motion (i.e. "Burn +0.03m/s2 prograde rel. to ECI at T+30hr for 20s"). Once this crude but working baseline is established, along with restrictions and goals (i.e. "Orbit Mars at these orbital parameters" and acceleration budgets based on staging) the C++ engine will take over to optimize and brute-force a better solution. (Medium priority)

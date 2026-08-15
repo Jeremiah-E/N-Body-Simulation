@@ -172,7 +172,7 @@ template <typename T> struct Vec3D {
 // The number of triangles in each circle
 #define RESOLUTION 16
 // The multiplier for the simulation's speed. Will be redone later
-#define FACTOR 360
+#define FACTOR 10
 // The multiplier for the zoom effectiveness
 #define ZOOM_FACTOR (double)(1.0 / 10.0)
 // To flip the y axis. Completely arbitrary, might align to the ecliptic, depending on how the data's structured
@@ -187,7 +187,7 @@ static bool sincosInit = false;
 static double const fov = 1.5707963; // 90°
 static double const projectionScale = 1.0 / tan(fov / 2.0); // Exactly 1, but we keep it here incase we want to change fov
 // Camera variables
-static double camDist = 19640000 * 1.1; // The distance from the cIdxth body
+static double camDist = 5.979e10; // The distance from the cIdxth body
 static double pitch = 0; // Determines which angle the camera points at cIdx from
 static double yaw = 0;   // Determines which angle the camera points at cIdx from
 static size_t cIdx = 0; // The camera is camDist away from {positions[cIdx*3+0], positions[cIdx*3+1], positions[cIdx*3+2]}
@@ -371,7 +371,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(displays[0]);
     SDL_free(displays);
     // Now create the window
-    SDL_Window* window = SDL_CreateWindow("Pluto System", mode->w / 2.0, mode->h / 2.0, SDL_WINDOW_RESIZABLE);
+    SDL_Window* window = SDL_CreateWindow("Solar System", mode->w / 2.0, mode->h / 2.0, SDL_WINDOW_RESIZABLE);
     // Move it to the desired location, centering it on the screen
     SDL_SetWindowPosition(window, mode->w / 4.0, mode->h / 4.0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, NULL);
@@ -499,9 +499,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             for (size_t j = 0; j < num; j++) {
                 if (i != j) {
                     auto const diff = positions[j] - positions[i];
-                    double dist2 = diff.magSquared();
-                    double dist = diff.mag();
-                    double invDist3 = 1.0 / (dist2 * dist);
+                    double invDist3 = 1.0 / (diff.magSquared() * diff.mag());
                     accelerations[i] += diff * mus[j] * invDist3;
                 }
             }
@@ -520,9 +518,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             for (size_t j = 0; j < num; j++) {
                 if (i != j) {
                     auto const diff = positions[j] - positions[i];
-                    double dist2 = diff.magSquared();
-                    double dist = diff.mag();
-                    double invDist3 = 1.0 / (dist2 * dist);
+                    double invDist3 = 1.0 / (diff.magSquared() * diff.mag());
                     accelerations[i] += diff * mus[j] * invDist3;
                 }
             }
