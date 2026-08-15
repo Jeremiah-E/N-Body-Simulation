@@ -9,6 +9,7 @@ DAY_TO_S = 86400.0
 # FILE GENERATION SETTINGS
 
 epoch = "January 1 2000 0:00:00" # UTC
+epoch = Time(dateparser.parse(epoch)).jd
 
 # Inner planets, barring Earth. Earth is on by default
 terrestrial = True
@@ -283,26 +284,20 @@ if not ice_moons and ice:
     mus[name_dict["Neptune"]] += mus_dict["Nereid"]
     replacements.append("Neptune")
 
-replaced_names = dict(replacements)  # original name -> display name
-
 # Returns needed information for asking JPL for a body
 def horizons_target(name):
     if name in replacements:
         return BARYCENTER_IDS[name], None
     if name in HORIZONS_MAJOR_IDS:
         return HORIZONS_MAJOR_IDS[name], None
-    # Asteroids/KBOs: resolved by name against Horizons' small-body database.
-    # Ambiguous/unexpected matches will raise or return unexpected data --
-    # worth checking the first run's output against known values.
+    # Small bodies have to be told to go through a different database
     return name, "smallbody"
-
-epoch_jd = Time(dateparser.parse(epoch)).jd
 
 positions = []
 velocities = []
 for name in names:
     target_id, id_type = horizons_target(name)
-    obj = Horizons(id=target_id, id_type=id_type, location='@0', epochs=epoch_jd)
+    obj = Horizons(id=target_id, id_type=id_type, location='@0', epochs=epoch)
     vec = obj.vectors()[0]
     positions.extend([
         float(vec['x']) * AU_TO_M,
@@ -319,41 +314,26 @@ for name in names:
 assert len(positions) == num * 3, "Positions has an incorrect length"
 assert len(velocities) == num * 3, "Velocities has an incorrect length"
 assert len(mus) == num, "Mus has an incorrect length"
-# We don't check names since we crop it out later - this will change in time
+assert len(names) == num, "Rads has an incorrect length"
 assert len(rads) == num, "Rads has an incorrect length"
 
 # Shift the reference frame to keep the center of mass and net momentum zero
 if num > 0:
     total_mass = sum(mus)
-    com_x = 0.0
-    com_y = 0.0
-    com_z = 0.0
-    mom_x = 0.0
-    mom_y = 0.0
-    mom_z = 0.0
+    com = [0, 0, 0]
+    mom = [0, 0, 0]
     for i in range(0, len(positions), 3):
         mass = mus[i // 3]
-        x = positions[i + 0]
-        y = positions[i + 1]
-        z = positions[i + 2]
-        vx = velocities[i + 0]
-        vy = velocities[i + 1]
-        vz = velocities[i + 2]
-        com_x += x * mass ; com_y += y * mass ; com_z += z * mass
-        mom_x += vx * mass ; mom_y += vy * mass ; mom_z += vz * mass
-    com_x /= total_mass
-    com_y /= total_mass
-    com_z /= total_mass
-    vcm_x = mom_x / total_mass
-    vcm_y = mom_y / total_mass
-    vcm_z = mom_z / total_mass
+        for j in range(3):
+            com[j] += positions[i + j] * mass
+            mom[j] += velocities[i + j] * mass
+    for i in range(3):
+        com[i] /= total_mass
+        mom[i] /= total_mass
     for i in range(0, len(positions), 3):
-        positions[i + 0] -= com_x
-        positions[i + 1] -= com_y
-        positions[i + 2] -= com_z
-        velocities[i + 0] -= vcm_x
-        velocities[i + 1] -= vcm_y
-        velocities[i + 2] -= vcm_z
+        for j in range(3):
+            positions[i + j] -= com[j]
+            velocities[i + j] -= mom[j]
 
 # Pack a piece of data into a type
 def pack(data, type):
