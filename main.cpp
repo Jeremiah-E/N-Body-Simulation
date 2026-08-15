@@ -10,32 +10,6 @@
 #include <type_traits>
 #include <algorithm>
 
-#pragma region Constants
-
-// The number of triangles in each circle
-#define RESOLUTION 16
-// The multiplier for the simulation's speed. Will be redone later
-#define FACTOR 360
-// The multiplier for the zoom effectiveness
-#define ZOOM_FACTOR (double)(1.0 / 10.0)
-
-// Precomputed sine and cosine values for generating circles
-static double sines[RESOLUTION];
-static double cosines[RESOLUTION];
-static bool sincosInit = false;
-
-// Camera constants
-static double const fov = 1.5707963; // 90°
-static double const projectionScale = 1.0 / tan(fov / 2.0); // Exactly 1, but we keep it here incase we want to change fov
-// Camera variables
-static double camDist = 19640000 * 1.1; // The distance from the cIdxth body
-static double pitch = 0; // Determines which angle the camera points at cIdx from
-static double yaw = 0;   // Determines which angle the camera points at cIdx from
-static size_t cIdx = 0; // The camera is camDist away from {positions[cIdx*3+0], positions[cIdx*3+1], positions[cIdx*3+2]}
-static float minScale = 3; // The minimum size of a body. When textures are introduced, this will determine when something's a point
-
-#pragma endregion Constants
-
 #pragma region Vector
 // 3D vector of any arithmetic type
 template <typename T> struct Vec3D {
@@ -191,14 +165,39 @@ template <typename T> struct Vec3D {
         return !(*this == v);
     }
 };
-
-// To flip the y axis. Completely arbitrary, might align to the ecliptic, depending on how the data's structured
-static const Vec3D<double> worldUp = Vec3D<double>(0.0, -1.0, 0.0).norm();
 #pragma endregion Vector
+
+#pragma region Compile-Time Vars
+
+// The number of triangles in each circle
+#define RESOLUTION 16
+// The multiplier for the simulation's speed. Will be redone later
+#define FACTOR 360
+// The multiplier for the zoom effectiveness
+#define ZOOM_FACTOR (double)(1.0 / 10.0)
+// To flip the y axis. Completely arbitrary, might align to the ecliptic, depending on how the data's structured
+static Vec3D<double> GLOBAL_UP = Vec3D<double>(0.0, -1.0, 0.0).norm();
+
+// Precomputed sine and cosine values for generating circles
+static double sines[RESOLUTION];
+static double cosines[RESOLUTION];
+static bool sincosInit = false;
+
+// Camera constants
+static double const fov = 1.5707963; // 90°
+static double const projectionScale = 1.0 / tan(fov / 2.0); // Exactly 1, but we keep it here incase we want to change fov
+// Camera variables
+static double camDist = 19640000 * 1.1; // The distance from the cIdxth body
+static double pitch = 0; // Determines which angle the camera points at cIdx from
+static double yaw = 0;   // Determines which angle the camera points at cIdx from
+static size_t cIdx = 0; // The camera is camDist away from {positions[cIdx*3+0], positions[cIdx*3+1], positions[cIdx*3+2]}
+static float minScale = 3; // The minimum size of a body. When textures are introduced, this will determine when something's a point
+
+#pragma endregion Compile-Time Vars
 
 #pragma region Circle Drawing
 // Given an array of centers, store the points of the circle in the vertex array
-void createCircles(const size_t num, float *centers, SDL_Vertex *verts, int *idxs, float *sizes, double *newNum, const size_t cIdx) {
+void createCircles(const size_t num, std::vector<Vec3D<float>> centers, SDL_Vertex *verts, int *idxs, float *sizes, double *newNum, const size_t cIdx) {
     // Precompute angles. Ideally, this'd be done in WinMain as I want to try and make this multithreaded later
     // For now, I'll leave it since I've already done way more premature optimization than I should've
     if (!sincosInit) {
@@ -228,9 +227,7 @@ void createCircles(const size_t num, float *centers, SDL_Vertex *verts, int *idx
             }
             // Move this entry to validIdx position
             if (validIdx != i) {
-                centers[validIdx * 3 + 0] = centers[i * 3 + 0];
-                centers[validIdx * 3 + 1] = centers[i * 3 + 1];
-                centers[validIdx * 3 + 2] = centers[i * 3 + 2];
+                centers[validIdx] = centers[i];
                 sizes[validIdx] = sizes[i];
             }
             validIdx++;
@@ -244,21 +241,22 @@ void createCircles(const size_t num, float *centers, SDL_Vertex *verts, int *idx
         sortedIndices[i] = i;
     }
     // Sort the values by the z coordinate of centers
-    std::sort(sortedIndices.begin(), sortedIndices.end(), [&centers](size_t a, size_t b) {return centers[a * 3 + 2] > centers[b * 3 + 2];});
+    std::sort(
+        // Bounds
+        sortedIndices.begin(), sortedIndices.end(),
+        // Lambda function
+        [&centers](size_t a, size_t b) {return centers[a].z > centers[b].z;}
+    );
     // Store everything in temp arrays according to sortedIndices
-    std::vector<float> tempCenters(*newNum * 3);
+    std::vector<Vec3D<float>> tempCenters(*newNum);
     std::vector<float> tempSizes(*newNum);
     for (size_t i = 0; i < *newNum; i++) {
-        tempCenters[i * 3 + 0] = centers[sortedIndices[i] * 3 + 0];
-        tempCenters[i * 3 + 1] = centers[sortedIndices[i] * 3 + 1];
-        tempCenters[i * 3 + 2] = centers[sortedIndices[i] * 3 + 2];
+        tempCenters[i] = centers[sortedIndices[i]];
         tempSizes[i] = sizes[sortedIndices[i]];
     }
     // Insert the temp arrays back
     for (size_t i = 0; i < *newNum; i++) {
-        centers[i * 3 + 0] = tempCenters[i * 3 + 0];
-        centers[i * 3 + 1] = tempCenters[i * 3 + 1];
-        centers[i * 3 + 2] = tempCenters[i * 3 + 2];
+        centers[i] = tempCenters[i];
         sizes[i] = tempSizes[i];
     }
     // Store the old indices
@@ -272,8 +270,8 @@ void createCircles(const size_t num, float *centers, SDL_Vertex *verts, int *idx
     // Since each iteration does not mess with the last, I hint the compiler parallelize it
     #pragma loop(hint_parallel(0))
     for (size_t i = 0; i < (size_t)*newNum; i++) {
-        double cx = centers[i * 3 + 0];
-        double cy = centers[i * 3 + 1];
+        const double cx = centers[i].x;
+        const double cy = centers[i].y;
         // Our local verts array
         SDL_Vertex *_verts = verts + (RESOLUTION + 1) * i;
         for (size_t j = 0; j < RESOLUTION; j++) {
@@ -313,11 +311,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     #pragma region File Loading
     // Initialize data
     int num;
-    std::unique_ptr<double []> positions;
-    std::unique_ptr<double []> velocities;
-    std::unique_ptr<double []> accelerations;
-    std::unique_ptr<double []> mus;
-    std::unique_ptr<double []> radii;
+    std::vector<Vec3D<double>> positions;
+    std::vector<Vec3D<double>> velocities;
+    std::vector<Vec3D<double>> accelerations;
+    std::vector<double> mus;
+    std::vector<double> radii;
     std::vector<std::string> names;
     // Read from universe.bin
     std::ifstream universe("universe.bin", std::ios::binary);
@@ -325,19 +323,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         // Get num
         universe.read(reinterpret_cast<char*>(&num), sizeof(int));
         // Create the pointer arrays/vector for everything
-        positions = std::make_unique<double[]>(num * 3);
-        velocities = std::make_unique<double[]>(num * 3);
-        accelerations = std::make_unique<double[]>(num * 3);
-        mus = std::make_unique<double[]>(num);
-        names.reserve(num); // Vectors can be any size, so we tell it to reserve this size instead of dynamically allocating itself
-        radii = std::make_unique<double[]>(num * 3);
+        positions.resize(num); velocities.resize(num); accelerations.resize(num);
+        mus.resize(num);       names.reserve(num);     radii.resize(num);
         // Load positions
-        for (int i = 0; i < num * 3; i++) {
-            universe.read(reinterpret_cast<char*>(&positions[i]), sizeof(double));
+        for (int i = 0; i < num; i++) {
+            positions[i] = Vec3D<double>();
+            universe.read(reinterpret_cast<char*>(&(positions[i].x)), sizeof(double));
+            universe.read(reinterpret_cast<char*>(&(positions[i].y)), sizeof(double));
+            universe.read(reinterpret_cast<char*>(&(positions[i].z)), sizeof(double));
         }
         // Load velocities
-        for (int i = 0; i < num * 3; i++) {
-            universe.read(reinterpret_cast<char*>(&velocities[i]), sizeof(double));
+        for (int i = 0; i < num; i++) {
+            velocities[i] = Vec3D<double>();
+            universe.read(reinterpret_cast<char*>(&(velocities[i].x)), sizeof(double));
+            universe.read(reinterpret_cast<char*>(&(velocities[i].y)), sizeof(double));
+            universe.read(reinterpret_cast<char*>(&(velocities[i].z)), sizeof(double));
         }
         // Load mus
         for (int i = 0; i < num; i++) {
@@ -381,9 +381,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Arrays used for various things inside the draw loop
     // Any array here must be overwritten before being read from
     auto sizes = std::make_unique<float[]>(num);
-    auto centers = std::make_unique<float[]>(num*3); // Screen translated coords
+    std::vector<Vec3D<float>> centers(num);
     auto verts = std::make_unique<SDL_Vertex[]>((RESOLUTION + 1) * num);
     auto idxs = std::make_unique<int[]>(num*RESOLUTION*3);
+    // Initialize centers
+    for (size_t i = 0; i < num; i++) {
+        centers[i] = Vec3D<float>();
+    }
 
     bool running = true;
     while (running) {
@@ -399,8 +403,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                 camDist *= 1 + e.wheel.y * ZOOM_FACTOR;
             } 
             if (e.type == SDL_EVENT_MOUSE_MOTION && (e.motion.state & SDL_BUTTON_LMASK)) {
-                yaw += e.motion.xrel * (1.0/128.0);
-                pitch += e.motion.yrel * (1.0/512.0);
+                yaw += e.motion.xrel * SDL_PI_D * (1.0/256.0);
+                pitch += e.motion.yrel * SDL_PI_D * (1.0/512.0);
             }
             if (e.type == SDL_EVENT_KEY_DOWN) {
                 if (e.key.key == SDLK_LEFTBRACKET) {
@@ -426,7 +430,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         
         // Get what the camera's pointing at
         // positions + cIdx + 3 points to teh 'cIdx'th planet's position, we effectively treat it as a double[3]
-        Vec3D<double> cameraPos(positions.get() + cIdx * 3);
+        Vec3D<double> cameraPos = positions[cIdx];
         // Get the offset of the camera to determine the camera's position
         Vec3D<double> offset(cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw));
         offset *= camDist;
@@ -438,9 +442,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         // forwards = -|offset|
         // (Note: unsure the order of operations here, but -|x| = |-x|, so we don't care in this instance)
         const auto forwards = -offset.norm();
-        // right = |forwards x worldUp|
-        // (Note: worldUp is completely arbitrary, and not to be confused with up [the camera's coordinate system's 'up' axis])
-        const auto right = (forwards ^ worldUp).norm();
+        // right = |forwards x GLOBAL_UP|
+        // (Note: GLOBAL_UP is completely arbitrary, and not to be confused with up [the camera's coordinate system's 'up' axis])
+        const auto right = (forwards ^ GLOBAL_UP).norm();
         // up = |right x forwards|
         const auto up = (right ^ forwards).norm();
         #pragma endregion Camera
@@ -449,56 +453,37 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         // Set up the circle
         for (size_t i = 0; i < num; i++) {
             // The new, perspective method
-            Vec3D<double> worldPos(positions.get() + i * 3);
-            Vec3D<double> relPos = worldPos - cameraPos;
+            const Vec3D<double> worldPos = positions[i] - cameraPos;
 
-            double xView = relPos * right;
-            double yView = relPos * up;
-            double zView = relPos * forwards;
+            const double xView = worldPos * right;
+            const double yView = worldPos * up;
+            const double zView = worldPos * forwards;
 
             if (zView > 0) {
                 double projFactor = (windowHeight / 2.0) * projectionScale / zView;
-                centers[i * 3 + 0] = (float)(xView * projFactor + windowWidth / 2.0);
-                centers[i * 3 + 1] = (float)(yView * projFactor + windowHeight / 2.0);
-                centers[i * 3 + 2] = (float)(zView); // Used for culling / draw order
+                centers[i].x = xView * projFactor + windowWidth / 2.0;
+                centers[i].y = yView * projFactor + windowHeight / 2.0;
+                centers[i].z = zView; // Used for culling/draw order
                 sizes[i] = max((float)(radii[i] * projFactor), minScale);
             } else {
                 sizes[i] = -1;
             }
-            // The old, orthogonal method
-            // Kept here for posterity and in-case perpective methods don't pan out
-            // centers[i * 2 + 0] = (float)(positions[i * 3 + 0] * screenScale + windowWidth  / 2.0);
-            // centers[i * 2 + 1] = (float)(positions[i * 3 + 1] * screenScale + windowHeight / 2.0);
-            // sizes[i] = 10;
         }
         double newNum = num;
-        createCircles(num, centers.get(), verts.get(), idxs.get(), sizes.get(), &newNum, cIdx);
+        createCircles(num, centers, verts.get(), idxs.get(), sizes.get(), &newNum, cIdx);
 
         // Draw all circles in a single batched call
         SDL_RenderGeometry(renderer, NULL, verts.get(), newNum * (RESOLUTION + 1), idxs.get(), newNum * RESOLUTION * 3);
         #pragma endregion Projection
 
         #pragma region Text
-        // Draw some text
-        const size_t bufLen = 50;
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        char buf[bufLen];
         // Row 1: "Simulating 2 bodies"
-        snprintf(buf, bufLen, "Simulating %d bodies", num);
-        SDL_RenderDebugText(renderer, 10, 10, buf);
-        // Row 2: "Pluto, Charon"
-        size_t bufIdx = 0;
-        // Append each name (barring the last) to buf
-        for (size_t i = 0; i + 1 < static_cast<size_t>(num); i++) {
-            snprintf(buf + bufIdx, bufLen - bufIdx, "%s, ", names[i].c_str());
-            bufIdx += names[i].size() + 2;
-        }
-        // Append the last name to buf
-        snprintf(buf + bufIdx, bufLen - bufIdx, "%s", names[num - 1].c_str());
-        SDL_RenderDebugText(renderer, 10, 20, buf);
-        // Row 3: "Centered: Pluto"
-        snprintf(buf, bufLen, "Centered: %s", names[cIdx].c_str());
-        SDL_RenderDebugText(renderer, 10, 30, buf);
+        std::string buf = std::string("Simulating ") + std::to_string(num) + std::string(" bodies");
+        SDL_RenderDebugText(renderer, 10, 10, buf.c_str());
+        // Row 2: "Centered: Pluto"
+        buf = std::string("Centered: ") + names[cIdx];
+        SDL_RenderDebugText(renderer, 10, 20, buf.c_str());
         #pragma endregion Text
 
         SDL_RenderPresent(renderer);
@@ -507,51 +492,44 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         #pragma region Computation Loop
         // Perform verlet integration
         // Update acceleration
-        for (size_t i = 0; i < num * 3; i++) {
-            accelerations[i] = 0.0;
+        for (size_t i = 0; i < num; i++) {
+            accelerations[i] = Vec3D<double>();
         }
         for (size_t i = 0; i < num; i++) {
             for (size_t j = 0; j < num; j++) {
                 if (i != j) {
-                    double dx = positions[j * 3 + 0] - positions[i * 3 + 0];
-                    double dy = positions[j * 3 + 1] - positions[i * 3 + 1];
-                    double dz = positions[j * 3 + 2] - positions[i * 3 + 2];
-                    double dist2 = dx * dx + dy * dy + dz * dz;
-                    double dist = sqrt(dist2);
+                    auto const diff = positions[j] - positions[i];
+                    double dist2 = diff.magSquared();
+                    double dist = diff.mag();
                     double invDist3 = 1.0 / (dist2 * dist);
-                    accelerations[i * 3 + 0] += dx * mus[j] * invDist3;
-                    accelerations[i * 3 + 1] += dy * mus[j] * invDist3;
-                    accelerations[i * 3 + 2] += dz * mus[j] * invDist3;
+                    accelerations[i] += diff * mus[j] * invDist3;
                 }
             }
         }
         // Perform a half-step
-        for (size_t i = 0; i < num * 3; i++) {
+        for (size_t i = 0; i < num; i++) {
             velocities[i] += accelerations[i] * FACTOR / 2.0;
             positions[i] += velocities[i] * FACTOR;
         }
         // Update acceleration again
-        for (size_t i = 0; i < num * 3; i++) {
-            accelerations[i] = 0.0;
+
+        for (size_t i = 0; i < num; i++) {
+            accelerations[i] = Vec3D<double>();
         }
         for (size_t i = 0; i < num; i++) {
             for (size_t j = 0; j < num; j++) {
                 if (i != j) {
-                    double dx = positions[j * 3 + 0] - positions[i * 3 + 0];
-                    double dy = positions[j * 3 + 1] - positions[i * 3 + 1];
-                    double dz = positions[j * 3 + 2] - positions[i * 3 + 2];
-                    double dist2 = dx * dx + dy * dy + dz * dz;
-                    double dist = sqrt(dist2);
+                    auto const diff = positions[j] - positions[i];
+                    double dist2 = diff.magSquared();
+                    double dist = diff.mag();
                     double invDist3 = 1.0 / (dist2 * dist);
-                    accelerations[i * 3 + 0] += dx * mus[j] * invDist3;
-                    accelerations[i * 3 + 1] += dy * mus[j] * invDist3;
-                    accelerations[i * 3 + 2] += dz * mus[j] * invDist3;
+                    accelerations[i] += diff * mus[j] * invDist3;
                 }
             }
         }
         // Another half-step
-        for (size_t i = 0; i < num * 3; i++) {
-            velocities[i] += accelerations[i] * FACTOR / 2.0;
+        for (size_t i = 0; i < num; i++) {
+            velocities[i] += accelerations[i] * (FACTOR / 2.0);
         }
         #pragma endregion Computation Loop
     }
