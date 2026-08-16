@@ -199,7 +199,7 @@ rads_dict = {
 }
 names = []
 # Build the system
-names = ["Sun", "Earth"]
+names = ["Sun", "Earth", "Moon"]
 if terrestrial:
     names.append("Mercury")
     names.append("Venus")
