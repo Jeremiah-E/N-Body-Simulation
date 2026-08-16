@@ -9,7 +9,7 @@
 #include <cstdio>
 #include <type_traits>
 #include <algorithm>
-#include "vector.hpp"
+#include "vector.hpp" // Vec3D struct
 
 #pragma region Compile-Time Vars
 
@@ -32,10 +32,12 @@ static double const fov = 1.5707963; // 90°
 static double const projectionScale = 1.0 / tan(fov / 2.0); // Exactly 1, but we keep it here incase we want to change fov
 // Camera variables
 static double camDist = 5.979e10; // The distance from the cIdxth body
-static double pitch = 0; // Determines which angle the camera points at cIdx from
-static double yaw = 0;   // Determines which angle the camera points at cIdx from
 static size_t cIdx = 0; // The camera is camDist away from {positions[cIdx*3+0], positions[cIdx*3+1], positions[cIdx*3+2]}
-static float minScale = 1; // The minimum size of a body. When textures are introduced, this will determine when something's a point
+static float minScale = 3; // The minimum size of a body. When textures are introduced, this will determine when something's a point
+// Camera directions
+static Vec3D<double> forwards = {0, 0, 1};
+static Vec3D<double> up = {0, 1, 0};
+static Vec3D<double> right = {1, 0, 0};
 
 #pragma endregion Compile-Time Vars
 
@@ -247,8 +249,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                 camDist *= 1 - e.wheel.y * ZOOM_FACTOR;
             } 
             if (e.type == SDL_EVENT_MOUSE_MOTION && (e.motion.state & SDL_BUTTON_LMASK)) {
-                yaw += e.motion.xrel * SDL_PI_D * (1.0/256.0);
-                pitch += e.motion.yrel * SDL_PI_D * (1.0/512.0);
+                // Get how much to rotate everything by
+                double yaw = e.motion.xrel * 0.008;
+                double pitch = e.motion.yrel * 0.005;
+                // Rotate everything
+                forwards = forwards.rotate(GLOBAL_UP, yaw);
+                right = right.rotate(GLOBAL_UP, yaw);
+                forwards = forwards.rotate(right, pitch);
+                // Normalize and recalculate everything
+                forwards = forwards.norm(); // Renormalize forwards (floating point drift)
+                right = (right - forwards * (right * forwards)).norm(); // Reorthogonalize right
+                up = (right ^ forwards).norm(); // Recompute up
             }
             if (e.type == SDL_EVENT_KEY_DOWN) {
                 if (e.key.key == SDLK_LEFTBRACKET) {
@@ -272,25 +283,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         int windowHeight;
         SDL_GetWindowSize(window, &windowWidth, &windowHeight);
         
-        // Get what the camera's pointing at
-        // positions + cIdx + 3 points to teh 'cIdx'th planet's position, we effectively treat it as a double[3]
-        Vec3D<double> cameraPos = positions[cIdx];
-        // Get the offset of the camera to determine the camera's position
-        Vec3D<double> offset(cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw));
-        offset *= camDist;
-        // Finally get the camera's position
-        cameraPos += offset;
-
-        // Determine the three coordinate axes of the camera: forwards, right, and up
-        // (Note: I use |v| to describe what's traditionally written as v/|v|, the normalization of a vector)
-        // forwards = -|offset|
-        // (Note: unsure the order of operations here, but -|x| = |-x|, so we don't care in this instance)
-        const auto forwards = -offset.norm();
-        // right = |forwards x GLOBAL_UP|
-        // (Note: GLOBAL_UP is completely arbitrary, and not to be confused with up [the camera's coordinate system's 'up' axis])
-        const auto right = (forwards ^ GLOBAL_UP).norm();
-        // up = |right x forwards|
-        const auto up = (right ^ forwards).norm();
+        // The camera is pointing at positions[cIdx] at distance camDist
+        Vec3D<double> cameraPos = positions[cIdx] - camDist * forwards;
         #pragma endregion Camera
 
         #pragma region Projection
