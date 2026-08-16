@@ -6,7 +6,7 @@
 #include <windows.h>
 
 #include <SDL3/SDL.h>
-#include "import.hpp"
+#include "grav.hpp" // Imports the other hpp files
 
 #pragma region Macros
 // The number of triangles in each circle
@@ -36,14 +36,14 @@ static double camDist = 5.979e10; // The distance from the cIdxth body
 static size_t cIdx = 0; // The camera is camDist away from {positions[cIdx*3+0], positions[cIdx*3+1], positions[cIdx*3+2]}
 static float minScale = 3; // The minimum size of a body. When textures are introduced, this will determine when something's a point
 // Camera directions
-static Vec3D<double> forwards = {0, 0, 1};
-static Vec3D<double> up = {0, 1, 0};
-static Vec3D<double> right = {1, 0, 0};
+static Vec3D<double> camForw = {0, 0, 1};
+static Vec3D<double> camUp = {0, 1, 0};
+static Vec3D<double> camRight = {1, 0, 0};
 #pragma endregion Global Variables
 
 #pragma region Circle Drawing
 // Given an array of centers, store the points of the circle in the vertex array
-void createCircles(double *num, std::vector<Vec3D<float>> centers, SDL_Vertex *verts, int *idxs, float *sizes, const size_t cIdx) {
+void createCircles(int *num, std::vector<Vec3D<float>> centers, SDL_Vertex *verts, int *idxs, float *sizes, const size_t _cIdx) {
     // Precompute angles. Ideally, this'd be done in WinMain as I want to try and make this multithreaded later
     // For now, I'll leave it since I've already done way more premature optimization than I should've
     if (!sincosInit) {
@@ -56,22 +56,22 @@ void createCircles(double *num, std::vector<Vec3D<float>> centers, SDL_Vertex *v
     }
 
     // To prevent me from looping over a changing variable
-    size_t oldNum = *num;
+    int oldNum = *num;
 
     // Filter out entries with invalid size and compact the arrays
     // This culls shapes off screen, given how this function is used in the draw loop
     size_t validIdx = 0;
-    size_t postCullCIdx = cIdx;
+    size_t postCullCIdx = _cIdx;
     bool isCIdxCulled = false;
     for (size_t i = 0; i < oldNum; i++) {
         if (sizes[i] <= 0.0) {
             // i was invalid, so we know there's one less valid object
             (*num)--;
             // If we get here, sizes[cIdx] was invalid
-            if (i == cIdx) { isCIdxCulled = true; }
+            if (i == _cIdx) { isCIdxCulled = true; }
         } else {
             // Move cIdx as needed
-            if (i == cIdx) {
+            if (i == _cIdx) {
                 postCullCIdx = validIdx;
             }
             // Move this entry to validIdx position
@@ -144,19 +144,24 @@ void createCircles(double *num, std::vector<Vec3D<float>> centers, SDL_Vertex *v
 
     // Build triangle indices for each circle
     for (size_t i = 0; i < (size_t)*num; i++) {
-        int base = (RESOLUTION + 1) * i;
-        int ibase = RESOLUTION * 3 * i;
-        for (int j = 0; j < RESOLUTION; j++) {
-            int tri = ibase + j * 3;
-            idxs[tri + 0] = base + j;
-            idxs[tri + 1] = base + ((j + 1) % RESOLUTION);
-            idxs[tri + 2] = base + RESOLUTION;
+        size_t base = (RESOLUTION + 1) * i;
+        size_t ibase = RESOLUTION * 3 * i;
+        for (size_t j = 0; j < RESOLUTION; j++) {
+            size_t tri = ibase + j * 3;
+            idxs[tri + 0] = (int)(base + j);
+            idxs[tri + 1] = (int)(base + ((j + 1) % RESOLUTION));
+            idxs[tri + 2] = (int)(base + RESOLUTION);
         }
     }
 }
 #pragma endregion Circle Drawing
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+    // Make the compiler stop complaining
+    (void)nShowCmd;
+    (void)lpCmdLine;
+    (void)hInstance;
+    (void)hPrevInstance;
     // Initialize data
     int num;
     std::vector<Vec3D<double>> positions;
@@ -176,9 +181,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(displays[0]);
     SDL_free(displays);
     // Now create the window
-    SDL_Window* window = SDL_CreateWindow("Solar System", mode->w / 2.0, mode->h / 2.0, SDL_WINDOW_RESIZABLE);
+    SDL_Window* window = SDL_CreateWindow("Solar System", (int)(mode->w / 2.0), (int)(mode->h / 2.0), SDL_WINDOW_RESIZABLE);
     // Move it to the desired location, centering it on the screen
-    SDL_SetWindowPosition(window, mode->w / 4.0, mode->h / 4.0);
+    SDL_SetWindowPosition(window, (int)(mode->w / 4.0), (int)(mode->h / 4.0));
     SDL_Renderer* renderer = SDL_CreateRenderer(window, NULL);
     SDL_SetRenderVSync(renderer, 1);
     #pragma endregion Create Window
@@ -215,13 +220,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                 double yaw = e.motion.xrel * 0.008;
                 double pitch = e.motion.yrel * 0.005;
                 // Rotate everything
-                forwards = forwards.rotate(GLOBAL_UP, yaw);
-                right = right.rotate(GLOBAL_UP, yaw);
-                forwards = forwards.rotate(right, pitch);
+                camForw = camForw.rotate(GLOBAL_UP, yaw);
+                camRight = camRight.rotate(GLOBAL_UP, yaw);
+                camForw = camForw.rotate(camRight, pitch);
                 // Normalize and recalculate everything
-                forwards = forwards.norm(); // Renormalize forwards (floating point drift)
-                right = (right - forwards * (right * forwards)).norm(); // Reorthogonalize right
-                up = (right ^ forwards).norm(); // Recompute up
+                camForw = camForw.norm(); // Renormalize forwards (floating point drift)
+                camRight = (camRight - camForw * (camRight * camForw)).norm(); // Reorthogonalize right
+                camUp = (camRight ^ camForw).norm(); // Recompute up
             }
             // A key was pressed
             if (e.type == SDL_EVENT_KEY_DOWN) {
@@ -249,24 +254,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         SDL_GetWindowSize(window, &windowWidth, &windowHeight);
         
         // The camera is pointing at positions[cIdx] at distance camDist
-        Vec3D<double> cameraPos = positions[cIdx] - camDist * forwards;
+        Vec3D<double> cameraPos = positions[cIdx] - camDist * camForw;
 
         // Set up the circle
         for (size_t i = 0; i < num; i++) {
             // The new, perspective method
             const Vec3D<double> worldPos = positions[i] - cameraPos;
 
-            const double zView = worldPos * forwards; // Used for culling, so it gets calculated first
+            const double zView = worldPos * camForw; // Used for culling, so it gets calculated first
             
             if (zView > 0) {
-                const double xView = worldPos * right;
-                const double yView = worldPos * up;
+                const double xView = worldPos * camRight;
+                const double yView = worldPos * camUp;
 
                 const double projFactor = (windowHeight / 2.0) * projectionScale / zView;
                 
-                centers[i].x = xView * projFactor + windowWidth / 2.0;
-                centers[i].y = yView * projFactor + windowHeight / 2.0;
-                centers[i].z = zView; // Used for draw order
+                centers[i].x = (float)(xView * projFactor + windowWidth / 2.0);
+                centers[i].y = (float)(yView * projFactor + windowHeight / 2.0);
+                centers[i].z = (float)zView; // Used for draw order
 
                 sizes[i] = max((float)(radii[i] * projFactor), minScale);
             } else {
@@ -274,7 +279,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             }
         }
         // Draw all circles
-        double newNum = num; createCircles(&newNum, centers, verts.get(), idxs.get(), sizes.get(), cIdx);
+        int newNum = num; createCircles(&newNum, centers, verts.get(), idxs.get(), sizes.get(), cIdx);
         SDL_RenderGeometry(renderer, NULL, verts.get(), newNum * (RESOLUTION + 1), idxs.get(), newNum * RESOLUTION * 3);
         #pragma endregion Projection
 
@@ -289,47 +294,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         #pragma endregion Text
 
         SDL_RenderPresent(renderer);
-        #pragma endregion Draw Loop
-
-        #pragma region Computation Loop
-        // Perform verlet integration
-        // Update acceleration
-        for (size_t i = 0; i < num; i++) {
-            accelerations[i] = Vec3D<double>();
-        }
-        for (size_t i = 0; i < num; i++) {
-            for (size_t j = 0; j < num; j++) {
-                if (i != j) {
-                    auto const diff = positions[j] - positions[i];
-                    double invDist3 = 1.0 / (diff.magSquared() * diff.mag());
-                    accelerations[i] += diff * mus[j] * invDist3;
-                }
-            }
-        }
-        // Perform a half-step
-        for (size_t i = 0; i < num; i++) {
-            velocities[i] += accelerations[i] * FACTOR / 2.0;
-            positions[i] += velocities[i] * FACTOR;
-        }
-        // Update acceleration again
-
-        for (size_t i = 0; i < num; i++) {
-            accelerations[i] = Vec3D<double>();
-        }
-        for (size_t i = 0; i < num; i++) {
-            for (size_t j = 0; j < num; j++) {
-                if (i != j) {
-                    auto const diff = positions[j] - positions[i];
-                    double invDist3 = 1.0 / (diff.magSquared() * diff.mag());
-                    accelerations[i] += diff * mus[j] * invDist3;
-                }
-            }
-        }
-        // Another half-step
-        for (size_t i = 0; i < num; i++) {
-            velocities[i] += accelerations[i] * (FACTOR / 2.0);
-        }
-        #pragma endregion Computation Loop
+        
+        integrate(&positions, &velocities, &mus, FACTOR);
     }
     
     SDL_DestroyRenderer(renderer);

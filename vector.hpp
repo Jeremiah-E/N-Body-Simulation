@@ -131,7 +131,7 @@ template <typename T> struct Vec3D {
     }
     // Distance squared
     T distSquared(Vec3D const v) const {
-        return (this - v).magSquared();
+        return ((*this) - v).magSquared();
     }
     // Distance
     T dist(Vec3D const &v) const {
