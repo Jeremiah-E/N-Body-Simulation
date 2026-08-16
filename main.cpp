@@ -3,9 +3,10 @@
 #include <iostream>
 #include <memory>
 #include <type_traits>
-#include <windows.h>
 
+#define SDL_MAIN_HANDLED
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
 #include "grav.hpp" // Imports the other hpp files
 
 #pragma region Macros
@@ -156,12 +157,8 @@ void createCircles(int *num, std::vector<Vec3D<float>> centers, SDL_Vertex *vert
 }
 #pragma endregion Circle Drawing
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
-    // Make the compiler stop complaining
-    (void)nShowCmd;
-    (void)lpCmdLine;
-    (void)hInstance;
-    (void)hPrevInstance;
+int main() {
+    SDL_SetMainReady();
     // Initialize data
     int num;
     std::vector<Vec3D<double>> positions;

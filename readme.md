@@ -6,9 +6,11 @@ Do note that this is my third time simulating the solar system, once in a Python
 
 # Support
 
-I have no means to test this on other operating systems than my own, so I intentionally only code for Windows. Huge thanks to Weffuls for making `setup.ps1` more portable.
+I have no means to test the code on machines other than my own (a Windows machine). However, I have tried to keep the code portable.
 
-# Progress so far
+It will most likely work on your machine if it's Windows, beyond that, I'm not sure if it will.
+
+# Progress
 
 I have a general structure for how bodies will be stored, as five different `double` arrays, alongside a `string` vector:
 1. Position

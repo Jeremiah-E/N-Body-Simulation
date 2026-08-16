@@ -6,7 +6,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 
 find_package(SDL3 REQUIRED CONFIG PATHS "$ENV{USERPROFILE}/vendored/SDL/install")
 
-add_executable(NBody WIN32 main.cpp)
+add_executable(NBody main.cpp)
 target_link_libraries(NBody PRIVATE SDL3::SDL3)
 
 target_compile_options(NBody PRIVATE
