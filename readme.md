@@ -26,10 +26,10 @@ Right now, I draw the loaded bodies' positions on screen using perspective proje
 
 Given the scope creep that will forever permiate the project, here's some goals for me to work towards.
 
-Well-defined goals:
-- Decouple physics and rendering.<br>Decouple the computation loop from the draw loop. The physics engine will run without visuals to precompute and record the entire solar system and mission state over a specified timeframe. The simulation will save this timeline, and the draw loop will load it and display the prerecorded data. (High priority)
-- Introduce Planet Textures.<br>Every body, even Sedna, has either a real image of its surface or an artists rendition out there somewhere. If I want to make this simulation less jarring and easier to follow, having bodies use real imagery would go a long way. Note that Saturn's rings will accompany this step. (Medium priority)
-- Planet Lighting.<br>The sun is largely the main source of light in the solar system. The math to make the solar system lit up will be relatively simple compared to traditional lighting engines. (Low priority)
-
-Not well-defined goals:
-- Mission planning.<br>I want to be able to set up a base mission and target parameters (Δv budget, target orbit, etc.) and have the program brute force more optimal solutions, either quicker or more Δv efficient. Have yet to decide how any of this will work. This will entail a Python program for the manual creation of an initial mission profile (similar to tweaking maneuver nodes in KSP, somewhere between vanilla and [Principia](https://github.com/mockingbirdnest/Principia)) using patched conics terminology to describe n-body motion (i.e. "Burn +0.03m/s2 prograde rel. to ECI at T+30hr for 20s"). Once this crude but working baseline is established, along with restrictions and goals (i.e. "Orbit Mars at these orbital parameters" and acceleration budgets based on staging) the C++ engine will take over to optimize and brute-force a better solution. (Medium priority)
+Goals:
+1. Switch to SDL3's 3D tools
+2. Find an alternative for `SDL_RenderDebugText`
+3. Figure out what data is needed for rendering. I suspect this to be the needed information \[TBD means IDK if I'll use it\]:<br>Images (lit, Earth's night, rings \[RGB*A*\])<br>3D models (for the minor bodies like Phobos or Pallas)<br>Rotation data (Rotation at the epoch \[+ verification, somehow? Might reduce `FACTOR` to 0 and see which side's day on Earth\], axis of rotation, rate of rotation)<br>Height maps (TBD, the terminus does not apply to landmasses above/below their surroundings)<br>Atmospheric data (TBD)
+4. Test particles<br>This will come with splitting integration from the draw loop, having the rendering interpolate various points in some timespan
+5. Mission planning<br>A file will have a handwritten mission for a rocket (test particle w/ thrust), and be ran through a Python file to generate a data file for the program
+6. Mission optimization<br>Have the C++ program optimize the mission
