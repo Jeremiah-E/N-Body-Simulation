@@ -277,40 +277,39 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
-        #pragma region Camera
-        // Determine scaling based on the window's size
+        #pragma region Projection
+        // Get the width/height for the centering of everything
         int windowWidth;
         int windowHeight;
         SDL_GetWindowSize(window, &windowWidth, &windowHeight);
         
         // The camera is pointing at positions[cIdx] at distance camDist
         Vec3D<double> cameraPos = positions[cIdx] - camDist * forwards;
-        #pragma endregion Camera
 
-        #pragma region Projection
         // Set up the circle
         for (size_t i = 0; i < num; i++) {
             // The new, perspective method
             const Vec3D<double> worldPos = positions[i] - cameraPos;
 
-            const double xView = worldPos * right;
-            const double yView = worldPos * up;
-            const double zView = worldPos * forwards;
-
+            const double zView = worldPos * forwards; // Used for culling, so it gets calculated first
+            
             if (zView > 0) {
-                double projFactor = (windowHeight / 2.0) * projectionScale / zView;
+                const double xView = worldPos * right;
+                const double yView = worldPos * up;
+
+                const double projFactor = (windowHeight / 2.0) * projectionScale / zView;
+                
                 centers[i].x = xView * projFactor + windowWidth / 2.0;
                 centers[i].y = yView * projFactor + windowHeight / 2.0;
-                centers[i].z = zView; // Used for culling/draw order
+                centers[i].z = zView; // Used for draw order
+
                 sizes[i] = max((float)(radii[i] * projFactor), minScale);
             } else {
                 sizes[i] = -1;
             }
         }
-        double newNum = num;
-        createCircles(num, centers, verts.get(), idxs.get(), sizes.get(), &newNum, cIdx);
-
-        // Draw all circles in a single batched call
+        // Draw all circles
+        double newNum = num; createCircles(num, centers, verts.get(), idxs.get(), sizes.get(), &newNum, cIdx);
         SDL_RenderGeometry(renderer, NULL, verts.get(), newNum * (RESOLUTION + 1), idxs.get(), newNum * RESOLUTION * 3);
         #pragma endregion Projection
 
