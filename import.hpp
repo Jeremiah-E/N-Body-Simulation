@@ -1,3 +1,5 @@
+#ifndef READ_HPP
+#define READ_HPP
 #include <cstdio>
 #include <fstream>
 #include <string>
@@ -5,8 +7,6 @@
 
 #include "vector.hpp"
 
-#ifndef READ_HPP
-#define READ_HPP
 void import(std::string datapath, int *num, std::vector<Vec3D<double>> *positions, std::vector<Vec3D<double>> *velocities, std::vector<Vec3D<double>> *accelerations, std::vector<double> *mus, std::vector<double> *radii, std::vector<std::string> *names) {
     // Read from universe.bin
     std::ifstream universe(datapath, std::ios::binary);

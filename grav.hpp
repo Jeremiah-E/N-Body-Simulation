@@ -1,3 +1,5 @@
+#ifndef GRAV_HPP
+#define GRAV_HPP
 #include "import.hpp"
 
 using namespace std;
@@ -38,3 +40,4 @@ void integrate(vector<Vec3D<double>> *positions, vector<Vec3D<double>> *velociti
         (*positions)[i] += (*velocities)[i] / 2.0 * timestep;
     }
 }
+#endif
