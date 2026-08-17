@@ -5,7 +5,6 @@
 #include <type_traits>
 
 #define SDL_MAIN_HANDLED
-#include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include "grav.hpp" // Imports the other hpp files
 
@@ -18,11 +17,19 @@
 #define ZOOM_FACTOR (double)(1.0 / 10.0)
 // Which file to load data from
 #define DATA_NAME "universe.bin"
+// The minimum size to render something as
+// Note: this is radius, not diameter
+#define MIN_SIZE 2
 #pragma endregion Macros
 
 #pragma region Global Variables
-// To flip the y axis. Completely arbitrary, might align to the ecliptic, depending on how the data's structured
-static Vec3D<double> GLOBAL_UP = Vec3D<double>(0.0, -1.0, 0.0).norm();
+// Makes the planets orbital planes about the FORW-RIGHT plane
+// (All planets have differing inclinations, so there is no exact plane we can use)
+// For reference, Sedna is down of the plane with this reference system
+// (Assuming the epoch is before 2150 - check the Python script if curious)
+static Vec3D<double> GLOBAL_UP = Vec3D<double>(0, 0, -1).norm();                // Our main vector. This one is unchanged
+static Vec3D<double> GLOBAL_FORW = (GLOBAL_UP ^ Vec3D<double>(1, 0, 0)).norm(); // If UP and FORW get messy numbers, we have to reorthogonalize FORW
+static Vec3D<double> GLOBAL_RIGHT = (GLOBAL_UP ^ GLOBAL_FORW).norm();           // We've run out of degrees of freedom, we compute RIGHT from the other two
 
 // Precomputed sine and cosine values for generating circles
 static double sines[RESOLUTION];
@@ -35,18 +42,16 @@ static double const projectionScale = 1.0 / tan(fov / 2.0); // Exactly 1, but we
 // Camera variables
 static double camDist = 5.979e10; // The distance from the cIdxth body
 static size_t cIdx = 0; // The camera is camDist away from {positions[cIdx*3+0], positions[cIdx*3+1], positions[cIdx*3+2]}
-static float minScale = 3; // The minimum size of a body. When textures are introduced, this will determine when something's a point
 // Camera directions
-static Vec3D<double> camForw = {0, 0, 1};
-static Vec3D<double> camUp = {0, 1, 0};
-static Vec3D<double> camRight = {1, 0, 0};
+static Vec3D<double> camUp = GLOBAL_UP;
+static Vec3D<double> camForw = GLOBAL_FORW;
+static Vec3D<double> camRight = GLOBAL_RIGHT;
 #pragma endregion Global Variables
 
 #pragma region Circle Drawing
 // Given an array of centers, store the points of the circle in the vertex array
-void createCircles(int *num, std::vector<Vec3D<float>> centers, SDL_Vertex *verts, int *idxs, float *sizes, const size_t _cIdx) {
-    // Precompute angles. Ideally, this'd be done in WinMain as I want to try and make this multithreaded later
-    // For now, I'll leave it since I've already done way more premature optimization than I should've
+void createCircles(int *num, vector<Vec3D<float>> centers, SDL_Vertex *verts, int *idxs, float *sizes, const size_t _cIdx) {
+    // Initialize the sin/cos table
     if (!sincosInit) {
         for (size_t i = 0; i < RESOLUTION; i++) {
             double angle = ((double)i / RESOLUTION) * SDL_PI_D * 2.0;
@@ -86,20 +91,20 @@ void createCircles(int *num, std::vector<Vec3D<float>> centers, SDL_Vertex *vert
 
     // Sort entries by their z value, for draw-order reasons
     // We create a list of indices, for now in original order
-    std::vector<size_t> sortedIndices(*num);
+    vector<size_t> sortedIndices(*num);
     for (size_t i = 0; i < *num; i++) {
         sortedIndices[i] = i;
     }
     // Sort the values by the z coordinate of centers
-    std::sort(
+    sort(
         // Bounds
         sortedIndices.begin(), sortedIndices.end(),
         // Lambda function
         [&centers](size_t a, size_t b) {return centers[a].z > centers[b].z;}
     );
     // Store everything in temp arrays according to sortedIndices
-    std::vector<Vec3D<float>> tempCenters(*num);
-    std::vector<float> tempSizes(*num);
+    vector<Vec3D<float>> tempCenters(*num);
+    vector<float> tempSizes(*num);
     for (size_t i = 0; i < *num; i++) {
         tempCenters[i] = centers[sortedIndices[i]];
         tempSizes[i] = sizes[sortedIndices[i]];
@@ -110,7 +115,7 @@ void createCircles(int *num, std::vector<Vec3D<float>> centers, SDL_Vertex *vert
         sizes[i] = tempSizes[i];
     }
     // Store the old indices
-    std::vector<size_t> inverseSortedIndices(*num);
+    vector<size_t> inverseSortedIndices(*num);
     for (size_t i = 0; i < *num; i++) {
         inverseSortedIndices[sortedIndices[i]] = i;
     }
@@ -161,12 +166,12 @@ int main() {
     SDL_SetMainReady();
     // Initialize data
     int num;
-    std::vector<Vec3D<double>> positions;
-    std::vector<Vec3D<double>> velocities;
-    std::vector<Vec3D<double>> accelerations;
-    std::vector<double> mus;
-    std::vector<double> radii;
-    std::vector<std::string> names;
+    vector<Vec3D<double>> positions;
+    vector<Vec3D<double>> velocities;
+    vector<Vec3D<double>> accelerations;
+    vector<double> mus;
+    vector<double> radii;
+    vector<string> names;
     // Import data from DATA_NAME
     import(DATA_NAME, &num, &positions, &velocities, &accelerations, &mus, &radii, &names);
 
@@ -187,10 +192,10 @@ int main() {
     
     // Arrays used for various things inside the draw loop
     // Any array here must be overwritten before being read from
-    auto sizes = std::make_unique<float[]>(num);
-    std::vector<Vec3D<float>> centers(num);
-    auto verts = std::make_unique<SDL_Vertex[]>((RESOLUTION + 1) * num);
-    auto idxs = std::make_unique<int[]>(num*RESOLUTION*3);
+    auto sizes = make_unique<float[]>(num);
+    vector<Vec3D<float>> centers(num);
+    auto verts = make_unique<SDL_Vertex[]>((RESOLUTION + 1) * num);
+    auto idxs = make_unique<int[]>(num*RESOLUTION*3);
     // Initialize centers
     for (size_t i = 0; i < num; i++) {
         centers[i] = Vec3D<float>();
@@ -206,6 +211,7 @@ int main() {
             if (e.type == SDL_EVENT_QUIT) {
                 // Terminate the loop
                 running = false;
+                break;
             }
             // The mouse wheel scrolled vertically
             if (e.type == SDL_EVENT_MOUSE_WHEEL && e.wheel.y != 0) {
@@ -220,8 +226,8 @@ int main() {
                 camForw = camForw.rotate(GLOBAL_UP, yaw);
                 camRight = camRight.rotate(GLOBAL_UP, yaw);
                 camForw = camForw.rotate(camRight, pitch);
-                // Normalize and recalculate everything
-                camForw = camForw.norm(); // Renormalize forwards (floating point drift)
+                // Recalculate the camera vectors
+                camForw = camForw.norm(); // Renormalize forwards (floating point drift correction)
                 camRight = (camRight - camForw * (camRight * camForw)).norm(); // Reorthogonalize right
                 camUp = (camRight ^ camForw).norm(); // Recompute up
             }
@@ -270,9 +276,9 @@ int main() {
                 centers[i].y = (float)(yView * projFactor + windowHeight / 2.0);
                 centers[i].z = (float)zView; // Used for draw order
 
-                sizes[i] = max((float)(radii[i] * projFactor), minScale);
+                sizes[i] = max((float)(radii[i] * projFactor), (float)MIN_SIZE);
             } else {
-                sizes[i] = -1;
+                sizes[i] = -1; // A 'do not draw' value
             }
         }
         // Draw all circles
@@ -282,12 +288,12 @@ int main() {
 
         #pragma region Text
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        // Row 1: "Simulating 2 bodies"
-        std::string buf = std::string("Simulating ") + std::to_string(num) + std::string(" bodies");
+        // Row 1: "Simulating 31 bodies"
+        string buf = string("Simulating ") + to_string(num) + string(" bodies");
         SDL_RenderDebugText(renderer, 10, 10, buf.c_str());
-        // Row 2: "Centered: Pluto"
-        buf = std::string("Centered: ") + names[cIdx];
-        SDL_RenderDebugText(renderer, 10, 20, buf.c_str());
+        // Row 2: "Centered: Earth"
+        buf = string("Centered: ") + names[cIdx];
+        SDL_RenderDebugText(renderer, 10, 20, buf.c_str());        
         #pragma endregion Text
 
         SDL_RenderPresent(renderer);

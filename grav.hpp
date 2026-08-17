@@ -4,6 +4,13 @@
 
 using namespace std;
 
+// A fairly niave computation of the gravity pulling on every body
+//
+// Given Newton's gravity formula (a=GM/|r|² • r.norm()), we can comptute the gravitational pull of everything in O(n²)
+//
+// The only optimization here is skipping half of the loop, calculating the two-way pull and only iterating over each pair. Given n=47, this suffices for the solar system simulation.
+//
+// Note: will probaly not reuse this for mission simulation/planning due to large a large n.
 void updateAccels(vector<Vec3D<double>> positions, vector<Vec3D<double>> *accelerations, vector<double> mus) {
     // Clear acceleration
     for (size_t i = 0; i < (*accelerations).size(); i++) {
@@ -26,6 +33,7 @@ void updateAccels(vector<Vec3D<double>> positions, vector<Vec3D<double>> *accele
     }
 };
 
+// Verlet integration to move the simulation forward by dt
 void integrate(vector<Vec3D<double>> *positions, vector<Vec3D<double>> *velocities, vector<double> *mus, double dt) {
     vector<Vec3D<double>> accelerations;
     accelerations.resize((*positions).size());

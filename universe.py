@@ -3,16 +3,13 @@ from astroquery.jplhorizons import Horizons
 from astropy.time import Time
 from dateutil import parser as dateparser
 
-AU_TO_M = 149597870700.0
-DAY_TO_S = 86400.0
-
-# FILE GENERATION SETTINGS
+###### FILE GENERATION SETTINGS
 
 epoch = "January 1 2000 0:00:00" # UTC
 epoch = Time(dateparser.parse(epoch)).jd
 
 # Inner planets, barring Earth. Earth is on by default
-terrestrial = True
+rock = True
 # Phobos, Deimos
 mars_moons = True
 # Jupiter, Saturn
@@ -30,10 +27,16 @@ kuiper_minors = True
 # Where to store the file. Note that changing this requires changing the C++ program as well
 filepath = "universe.bin"
 
-######
+###### CONSTANTS - DO NOT CHANGE
+
+AU_TO_M = 149597870700.0
+DAY_TO_S = 86400.0
+version = "NBS1" # N-Body Sim. v1
 
 # Some settings don't make sense without their parent setting
-mars_moons = mars_moons and terrestrial
+if mars_moons and not rock:
+    print("Omitting Martian moons: no Mars")
+mars_moons = mars_moons and rock
 if gas_moons and not gas:
     print("Omitting gas giant moons: no gas giants")
 gas_moons = gas_moons and gas
@@ -46,9 +49,9 @@ ice_moons = ice_moons and ice
 if kuiper_minors and not ice:
     print("Omitting kuiper minors: ice giants not included")
 kuiper_minors = kuiper_minors and ice
-if asteroid_minors and not (terrestrial and gas):
+if asteroid_minors and not (rock and gas):
     print("Omitting asteroid minors: not enough planets")
-asteroid_minors = asteroid_minors and terrestrial and gas
+asteroid_minors = asteroid_minors and rock and gas
 
 # JPL Horizons target IDs for planets and their named moons (NAIF IDs - unambiguous)
 HORIZONS_MAJOR_IDS = {
@@ -131,7 +134,6 @@ mus_dict = {
     "Quaoar": 9.3e10,
     "Orcus": 4.2e10
 }
-
 # Mean volumetric radius in meters
 rads_dict = {
     # Star & Terrestrial Planets + Moon
@@ -200,7 +202,7 @@ rads_dict = {
 names = []
 # Build the system
 names = ["Sun", "Earth", "Moon"]
-if terrestrial:
+if rock:
     names.append("Mercury")
     names.append("Venus")
     names.append("Mars")
@@ -252,7 +254,7 @@ replacements = []
 
 # Corrections if not everything's in
 # Corrects the mus so the rough mass is the same, and adds the names to `replacements`, which tracks which bodies are to be replaced with their system barycenters
-if not mars_moons and terrestrial:
+if not mars_moons and rock:
     mus[name_dict["Mars"]] += mus_dict["Phobos"]
     mus[name_dict["Mars"]] += mus_dict["Deimos"]
     replacements.append("Mars")
@@ -347,6 +349,8 @@ def pack(data, type):
 
 # Now we generate the file
 with open(filepath, 'wb') as file:
+    # A C string
+    file.write(pack(version, 'string'))
     # An int
     file.write(pack(num, 'int'))
     # A double[] of len 3*num

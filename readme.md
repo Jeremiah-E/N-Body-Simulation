@@ -12,14 +12,6 @@ It will most likely work on your machine if it's Windows, beyond that, I'm not s
 
 # Progress
 
-I have a general structure for how bodies will be stored, as five different `double` arrays, alongside a `string` vector:
-1. Position
-2. Velocity
-3. Acceleration
-4. Gravitational parameter<br>(Mass times a constant $G$, roughly $6.67\cdot 10^{-11} \frac{\text{m}^3}{\text{kg}\thinspace{}\text{s}^2}$. This is easier to measure than just mass, and it means we don't need to store $G$ anywhere)
-5. Radius
-6. Name
-
 A Python script (`universe.py`) generates a `universe.bin` file describing the system (body count, positions, velocities, gravitational parameters, radii, and names), which `main.cpp` reads at startup. `universe.py` currently supports toggling various aspects of the solar system. At maximum settings, 47 bodies are simulated. At minimum settings, only the Earth/Sun/Moon are simulated.
 
 Right now, I draw the loaded bodies' positions on screen using perspective projection and 3D camera controls, then perform velocity-verlet integration to find their position for the next frame.

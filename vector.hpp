@@ -3,11 +3,13 @@
 // 3D vector of any arithmetic type
 template <typename T> struct Vec3D {
     // Compile-time assert statement to ensure that T is something that allows math operations
-    static_assert(std::is_arithmetic_v<T>, "T is not an arithmetic type");
+    static_assert(is_arithmetic_v<T>, "T is not an arithmetic type");
+    // Any time a floating type is needed, use F instead of T
+    using F = common_type_t<T, double>;
+
     // The components of the vector. Only makes sense when in some reference frame, which will be derived from the dataset
     T x; T y; T z;
-    // Any time a floating type is needed, use F instead of T
-    using F = std::common_type_t<T, double>;
+
     // Default constructor, all zeroes
     Vec3D() : x(0), y(0), z(0) {};
     // Constructor given T [3]
@@ -17,70 +19,97 @@ template <typename T> struct Vec3D {
     // Constructor given T *
     // Ensure the pointer has enough room to call var[2]
     Vec3D(T *var) : Vec3D(var[0], var[1], var[2]){}
-    // Addition
-    Vec3D operator+(Vec3D const &v) const {
-        return {x + v.x, y + v.y, z + v.z};
-    }
+
     // Scalar multiplication
+    // v * s
     Vec3D operator*(const T s) const {
         return {x * s, y * s, z * s};
     }
     // Scalar multiplicative assignment
+    // v *= s
     void operator*=(const T s) {
         x *= s; y *= s; z *= s;
     }
     // Multiplication by a scalar
+    // s * v
     friend Vec3D operator*(const T s, const Vec3D& v) {
         return {v.x * s, v.y * s, v.z * s};
     }
     // Dot product
-    T operator*(Vec3D const &v) const {
-        return x * v.x + y * v.y + z * v.z;
+    // v * u
+    T operator*(Vec3D const &u) const {
+        return x * u.x + y * u.y + z * u.z;
     }
     // Cross Product
-    Vec3D operator^(Vec3D const &v) const {
-        return {y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x};
+    // v ^ u
+    Vec3D operator^(Vec3D const &u) const {
+        return {y * u.z - z * u.y, z * u.x - x * u.z, x * u.y - y * u.x};
     }
     // Cross product assignment
-    void operator^=(Vec3D const v) {
-        const double xp = y * v.z - z * v.y;
-        const double yp = z * v.x - x * v.z;
-        const double zp = x * v.y - y * v.x;
+    // v ^= u
+    void operator^=(Vec3D const u) {
+        const double xp = y * u.z - z * u.y;
+        const double yp = z * u.x - x * u.z;
+        const double zp = x * u.y - y * u.x;
         x = xp; y = yp; z = zp;
     }
+    // Scalar division
+    // v / s
+    Vec3D operator/(const T s) const {
+        const F invS = 1.0 / static_cast<F>(s);
+        return {
+            static_cast<T>(x * invS),
+            static_cast<T>(y * invS),
+            static_cast<T>(z * invS)
+        };
+    }
+    // Scalar division assignment
+    // v /= s
+    void operator/=(const T s) {
+        const F invS = 1.0 / static_cast<F>(s);
+        x = static_cast<T>(x * invS);
+        y = static_cast<T>(y * invS);
+        z = static_cast<T>(z * invS);
+    }
     // Vector addition
-    Vec3D operator+(Vec3D const &v) {
-        return {x + v.x, y + v.y, z + v.z};
+    // v + u
+    Vec3D operator+(Vec3D const &u) const {
+        return {x + u.x, y + u.y, z + u.z};
     }
     // Vector additive assignment
-    void operator+=(Vec3D const &v) {
-        x += v.x; y += v.y; z += v.z;
+    // v += u
+    void operator+=(Vec3D const &u) {
+        x += u.x; y += u.y; z += u.z;
     }
     // Vector subtraction
-    Vec3D operator-(Vec3D const &v) const {
-        return {x - v.x, y - v.y, z - v.z};
+    // v - u
+    Vec3D operator-(Vec3D const &u) const {
+        return {x - u.x, y - u.y, z - u.z};
     }
     // Vector subtractive assignment
-    void operator-=(Vec3D const &v) {
-        x -= v.x; y -= v.y; z -= v.z;
+    // v -= u
+    void operator-=(Vec3D const &u) {
+        x -= u.x; y -= u.y; z -= u.z;
     }
     // Unary negation
+    // -v
     Vec3D operator-() const {
         return Vec3D(-x, -y, -z);
     }
     // Squared magnitude (length squared)
-    // Exists incase we end up using this for gravity math, where it's slightly optimal to do mag() * magSquared()
+    // Cheaper to compute than mag()
+    // v.magSquared()
     T magSquared() const {
         return x * x + y * y + z * z;
     }
     // Magnitude (length)
+    // v.mag()
     T mag() const {
-        // Since it's so wordy:
-        // val = sqrt(magSquared)
-        F val = std::sqrt(static_cast<F>(magSquared()));
+        F val = sqrt(static_cast<F>(magSquared()));
         return static_cast<T>(val);
     }
     // Normalize operator, v.norm() == v/|v|
+    // v.norm()
     Vec3D norm() const {
         const T length = mag();
         // Fallback incase it's already zero
@@ -94,65 +123,58 @@ template <typename T> struct Vec3D {
         };
     }
     // Scalar comparison: greater than
-    // Equivalent to v.mag() > m
-    bool operator>(const T m) const {
-        return mag() > m;
+    // Equivalent to v.mag() > s
+    // v > s
+    bool operator>(const T s) const {
+        return magSquared() > sqrt(s);
     }
     // Scalar comparison: greater than or equal to
-    // Equivalent to v.mag() >= m
-    bool operator>=(const T m) const {
-        return mag() >= m;
+    // Equivalent to v.mag() >= s
+    // v >= s
+    bool operator>=(const T s) const {
+        return magSquared() >= sqrt(s);
     }
     // Scalar comparison: less than
     // Equivalent to v.mag() < m
-    bool operator<(const T m) const {
-        return mag() < m;
+    // v < s
+    bool operator<(const T s) const {
+        return magSquared() < sqrt(s);
     }
     // Scalar comparison: less than or equal to
-    // Equivalent to v.mag() <= m
-    bool operator<=(const T m) const {
-        return mag() <= m;
-    }
-    // Scalar division
-    Vec3D operator/(const T m) const {
-        const F id = 1.0 / static_cast<F>(m);
-        return {
-            static_cast<T>(x * id),
-            static_cast<T>(y * id),
-            static_cast<T>(z * id)
-        };
-    }
-    // Scalar division assignment
-    void operator/=(const T m) {
-        const F id = 1.0 / static_cast<F>(m);
-        x = static_cast<T>(x * id);
-        y = static_cast<T>(y * id);
-        z = static_cast<T>(z * id);
+    // Equivalent to v.mag() <= s
+    // v <= s
+    bool operator<=(const T s) const {
+        return magSquared() <= sqrt(s);
     }
     // Distance squared
-    T distSquared(Vec3D const v) const {
-        return ((*this) - v).magSquared();
+    // v.distSquared(u)
+    T distSquared(Vec3D const u) const {
+        return ((*this) - u).magSquared();
     }
     // Distance
-    T dist(Vec3D const &v) const {
-        const F d = std::sqrt(static_cast<F>(distSquared(v)));
+    // v.dist(u)
+    T dist(Vec3D const &u) const {
+        const F d = sqrt(static_cast<F>(distSquared(u)));
         return static_cast<T>(d);
     }
     // Equality
     // Warning: floating point precision applies here
-    bool operator==(Vec3D const &v) const {
-        return (x == v.x && y == v.y && z == v.z);
+    // v == u
+    bool operator==(Vec3D const &u) const {
+        return (x == u.x && y == u.y && z == u.z);
     }
     // Inequality
     // Warning: floating point precision applies here
-    bool operator!=(Vec3D const &v) const {
-        return (x != v.x || y != v.y || z != v.z);
+    // v != u
+    bool operator!=(Vec3D const &u) const {
+        return (x != u.x || y != u.y || z != u.z);
     }
     // Rotate this vector by angle around axis, using Rodrigues' rotation formula
     // Assumes axis is a unit vector. Generated by Claude.
-    Vec3D rotate(Vec3D const &axis, T angle) const {
-        const F cosine = std::cos(static_cast<F>(angle));
-        const F sine = std::sin(static_cast<F>(angle));
+    // v.rotate(axis, angle)
+    Vec3D rotate(Vec3D const &axis, const T angle) const {
+        const F cosine = cos(static_cast<F>(angle));
+        const F sine = sin(static_cast<F>(angle));
         const F versine = 1.0 - cosine;
         return (*this) * static_cast<T>(cosine) + (axis ^ (*this)) * static_cast<T>(sine) + axis * static_cast<T>((axis * (*this)) * versine);
     }
